@@ -425,12 +425,12 @@ def dm2dd(coordDegMin):
 # Due to a peculiarity with the Cursors in ArcGIS, InsertCursor
 # will only accept a COM Object version of the Spatial Reference
 # Which is only available when doing a describe on a feature class
-def make_spatRef(gp,aDir,coordSys):
+def make_spatRef( arcpy,aDir,coordSys):
     tempName = 'tmp4sr.shp'
-    tempFC = gp.CreateFeatureClass(aDir,tempName,"POINT","#","#","#",coordSys)
-    desc = gp.describe(tempFC)
+    tempFC = arcpy.CreateFeatureclass_management(aDir,tempName,"POINT","#","#","#",coordSys)
+    desc = arcpy.Describe(tempFC)
     spatRef = desc.SpatialReference
-    gp.delete(tempFC)
+    arcpy.Delete_management(tempFC)
     return spatRef
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------

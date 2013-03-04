@@ -37,10 +37,26 @@
 import os
 import sys
 import csv
-import arcgisscripting
+import arcpy
 
 # Import constants and Utility Functions for SVMP processing
 import svmpUtils as utils
+
+#
+#  if ArcGIS 10.1, defer to the Data Access module
+#  from https://github.com/mattmakesmaps/335A_SoundGIS_DNR/blob/master/Python/Merge_Tool/Merge_Tool.py
+#
+def arcmodule_exists( module_name ):
+    try:
+        __import__( module_name )
+    except ImportError:
+        return False
+    else:
+        return True
+
+arcgis_version = '10.0' # default
+if arcmodule_exists( 'arcpy.da' ):
+    arcgis_version = '10.1'
 
 # Import the custom Exception class for handling errors
 from svmp_exceptions import SvmpToolsError
@@ -49,7 +65,7 @@ STEP = 1
 def msg(msg):
     global STEP
     #msg = 'Step %s: %s...' % (STEP,msg)
-    gp.AddMessage(msg)
+    arcpy.AddMessage(msg)
     STEP += 1
 
 #--------------------------------------------------------------------------
@@ -66,7 +82,7 @@ def addDatFields(cols,FC):
             fprecision = col[2]
             fscale = col[3]
             flength = col[4]
-            gp.addfield(FC,fname,ftype,fprecision,fscale,flength)
+            arcpy.AddField_management(FC,fname,ftype,fprecision,fscale,flength)
             fnames.append(fname)
     return fnames
 
@@ -88,24 +104,117 @@ def test_csv(csv_input):
 
         
 def get(idx):
-    return gp.GetParameterAsText(idx)
+    return arcpy.GetParameterAsText(idx)
+
+#--------------------------------------------------------------------------    
+#--------------------------------------------------------------------------
+#--------------   Cursor Class  -------------------------------------------
+#--------------------------------------------------------------------------    
+#--------------------------------------------------------------------------
+class BadCursorType(Exception):
+    def __init__(self, message):
+        super( BadCursorType , self ).__init__( message )
+    def __str__(self):
+        return repr(self.code)
+        
+class ArcGIS10xCursorWrapper( object ):
+    
+    def __init__( self, arcgis_version ):
+        self.arcgis_version = arcgis_version
+        self.cursor_types = dict( 
+                [ kv for kv in [ ( 'search', 'SearchCursor' ),
+                                     ( 'insert', 'InsertCursor' ), 
+                                     ( 'update', 'UpdateCursor' ) ] 
+                ]
+        )
+        self.cursor = None
+        
+    def _set_cursor( self, cursor_type ):
+        if cursor_type not in self.cursor_types.values():
+            raise BadCursorType(
+                "The cursor you passed in [ %s ] is not one of the cursor types %s" % 
+                ( cursor_type, str( self.cursor_types.values() ) )
+            )
+        if self.arcgis_version == '10.1':
+            self.cursor = getattr( arcpy.da , cursor_type )
+        elif self.arcgis_version == '10.0':
+            self.cursor = getattr( arcpy , cursor_type )
+        
+        msg( "[ CREATED ]: cursor of type = %s" % str( self.cursor ) )
+        return self.cursor
+            
+    def insert( self, target_gdb, target_object, fields, records, **kwargs ):
+        """
+        TODO: list needed kwargs here
+        <destination_gdb>
+        <fields>
+        <records>
+        """
+        if self.cursor.__class__.__name__ != self.cursor_types['insert']:
+            raise BadCursorType(
+                "The method insert() cannot operate with cursor type of %s" % 
+                ( self.cursor.__class__.__name__ )
+            )
+    
+        #
+        # ArcGIS 10.1 version requires an edit session and edit operations
+        #
+        edit_session = None
+        if self.arcgis_version == '10.1':
+            #
+            # Create and start an edit session.
+            # A single edit session is comprised of multiple edit operations
+            #
+            from arcpy.da import Editor
+            edit_session = Editor( kwargs.get( 'datasource', None ) )
+            edit_session.startEditing()
+    
+        #
+        # Begin insert of records
+        #
+        successful_insert = 0
+        for row in records:
+            msg( '[ INSERTING ]: %s' % str(row) )
+            if edit_session: # 10.1 version
+                #
+                #
+                #  for each row, start and edit operation and create a new InsertCursor.
+                #  NOTE: Reccomended in ESRI help to create new InsertCursor for each edit.
+                #
+                #
+                edit_session.startOperation()
+                with self.cursor( os.path.join( target_gdb, target_object ), fields) as insert_cursor:
+                    insert_cursor.insertRow(row)
+
+                edit_session.stopOperation()
+            else: # 10.0 version
+#                insert_cursor = InsertCursor(os.path.join(destGDB, object), fields)
+#                insert_row = insert_cursor.newRow()
+#                insert_cursor.insertRow(insert_row) 
+#                del insert_cursor
+                pass
+                
+            successful_insert += 1
+        #
+        #  close and save edits.
+        #
+        if edit_session: # 10.1 version
+            edit_session.stopEditing(True)
+        
+        msg( '[ LOADED ]: %s records' % str( successful_insert ) )
+
           
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 #MAIN
 
 if __name__ == "__main__":
+    
 
     try:
-
-        # Create the geoprocessing object
-        gp = arcgisscripting.create()
-        # Overwrite existing output data (for testing only?)
-        gp.OverWriteOutput = 1
-
         # Create the custom error class
-        # and associate it with the gp
-        e = SvmpToolsError(gp)
+        # and associate it with the arcpy
+        e = SvmpToolsError( arcpy )
         # Set some basic defaults for error handling
         e.debug = True
         e.full_tb = True
@@ -171,7 +280,7 @@ if __name__ == "__main__":
             
         # Create input Spatial Reference for use in Cursor
         msg('Fetching Spatial Reference')
-        inSpatialRef = utils.make_spatRef(gp,outParentDir,inCoordSys)
+        inSpatialRef = utils.make_spatRef(arcpy,outParentDir,inCoordSys)
         
         msg("Processing %s site(s) requested in '%s'" % (len(siteList),siteFile))
         # Now loop through and process sites
@@ -198,18 +307,18 @@ if __name__ == "__main__":
             # Also, in 9.2, there is a bug, so it works outside ArcCatalog/ArcMap, but not within
             # In 9.2, it just dies without any sort of error indication -- says it was successful - Yuck
             # This workaround didn't work: http://forums.esri.com/Thread.asp?c=93&f=1729&t=251511#774023
-            #gp.workspace = os.path.dirname(outFCFull)
+            #workspace = os.path.dirname(outFCFull)
             #schemaTest = 'TRUE'
             #if os.path.exists(outFCFull):
                 #msg("Feature class already exists")
-                ##schemaTest = gp.TestSchemaLock(outFCFull)
-                #schemaTest = gp.TestSchemaLock(outFC)
+                ##schemaTest = TestSchemaLock(outFCFull)
+                #schemaTest = TestSchemaLock(outFC)
             #if schemaTest == 'TRUE':
             # Can't use schema Lock test in 9.2, therefore, if it can't create out FC, just give suggestions
             # This section would be further indented within an if/else for Schema Lock test if it worked
             try: 
                 # Create Feature class and add fields
-                fc = gp.CreateFeatureClass(outDir,outFC,"POINT","#","#","#",outCoordSys)
+                fc = arcpy.CreateFeatureclass_management(outDir,outFC,"POINT","#","#","#",outCoordSys)
                 # Add Fields to the feature class
                 fieldnames = addDatFields(utils.trkPtShpCols,outFCFull)
                 msg("Created Feature Class: '%s'" % outFC)
@@ -228,10 +337,13 @@ if __name__ == "__main__":
                 #errtext += "\nIf you are viewing the data in ArcCatalog, \nchange directories and choose 'Refresh' under the 'View' menu."
                 #e.call(errtext)
 
-            # Create Update Cursor, with input spatial reference info
+            # Create Insert Cursor, with input spatial reference info
             # Allows projection on the fly from source data to output shapefile
-            cur = gp.InsertCursor(outFCFull,inSpatialRef)
-            pnt = gp.CreateObject("Point")
+            #arc_cursor_wrapper = ArcGIS10xCursorWrapper( arcgis_version )
+            #cur_class = arc_cursor_wrapper._set_cursor( 'InsertCursor' )
+            cur = arcpy.InsertCursor(outFCFull,inSpatialRef)
+            #cur = cur_class(outFCFull,inSpatialRef)
+            pnt = arcpy.CreateObject("Point")
 
             msg("Populating data table of '%s'" % outFC)
             for idx, row in enumerate(reader):
@@ -253,7 +365,7 @@ if __name__ == "__main__":
                     errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
                     e.call(errtext)                    
                 # Create the features
-                feat = cur.NewRow()
+                feat = cur.newRow()
                 # Assign the point to the shape attribute
                 feat.shape = pnt
                 feat.Id = idx + 1
@@ -266,12 +378,12 @@ if __name__ == "__main__":
                         value = utils.nullDep
                     # Catch erroneous data types here (string in a numeric type)
                     try:
-                        feat.SetValue(field,value)
+                        feat.setValue(field,value)
                     except:
                         errtext = "Error in input CSV file, row: %s and column: %s" % (csv_row,field)
                         e.call(errtext)
                 try:
-                    cur.InsertRow(feat)
+                    cur.insertRow(feat)
                 except:
                     errtext = "Error in input CSV file row: %s" % (csv_row)
                     e.call(errtext)
@@ -281,4 +393,3 @@ if __name__ == "__main__":
         pass
     except:
         e.call()
-        del gp

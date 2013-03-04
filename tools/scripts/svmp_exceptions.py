@@ -18,7 +18,7 @@ class SvmpToolsError(Exception):
      * http://webhelp.esri.com/arcgisdesktop/9.2/index.cfm?TopicName=GetMessages_method
     """    
     
-    def __init__(self,gp,
+    def __init__(self, arcpy,
           severity=2,parent_exc=None,full_tb=False,
           pretty_print=True,exit_clean=True,
           debug=False,pdb=False,send_mail=False):
@@ -26,7 +26,7 @@ class SvmpToolsError(Exception):
         """
         
         # Optional keyword arguments 
-        self.gp = gp
+        self.gp = arcpy
         self.debug = debug
         self.pdb = pdb
         self.exit_clean = exit_clean
@@ -112,8 +112,8 @@ class SvmpToolsError(Exception):
           error_text += self.get_traceback()        
           msg = MIMEText(error_text)
           msg['Subject'] = 'SVMP TOOLS ERROR'
-          msg['From'] = 'dbsgeo@gmail.com'
-          msg['To'] = 'dbsgeo@gmail.com'
+          msg['From'] = 'gregcorradini@gmail.com'
+          msg['To'] = 'gregcorradini@gmail.com'
           s = smtplib.SMTP()
           s.set_debuglevel(0)
           if USE_GMAIL:
@@ -121,7 +121,7 @@ class SvmpToolsError(Exception):
             s.ehlo()
             s.starttls()
             s.ehlo()
-            s.login('dane.mapnik@gmail.com', '.osmapnik')
+            s.login('gregcorradini@gmail.com', 'crisco')
           else:
             s.connect(host='localhost',port=587)
           # sendmail(self, from_addr, to_addrs, msg, mail_options=[], rcpt_options=[])
