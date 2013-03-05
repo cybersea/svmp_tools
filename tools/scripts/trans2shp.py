@@ -42,21 +42,8 @@ import arcpy
 # Import constants and Utility Functions for SVMP processing
 import svmpUtils as utils
 
-#
-#  if ArcGIS 10.1, defer to the Data Access module
-#  from https://github.com/mattmakesmaps/335A_SoundGIS_DNR/blob/master/Python/Merge_Tool/Merge_Tool.py
-#
-def arcmodule_exists( module_name ):
-    try:
-        __import__( module_name )
-    except ImportError:
-        return False
-    else:
-        return True
-
-arcgis_version = '10.0' # default
-if arcmodule_exists( 'arcpy.da' ):
-    arcgis_version = '10.1'
+# Import cursor wrapper
+from arcgis_cursor_wrapper import ArcGIS10xCursorWrapper
 
 # Import the custom Exception class for handling errors
 from svmp_exceptions import SvmpToolsError
@@ -105,104 +92,6 @@ def test_csv(csv_input):
         
 def get(idx):
     return arcpy.GetParameterAsText(idx)
-
-#--------------------------------------------------------------------------    
-#--------------------------------------------------------------------------
-#--------------   Cursor Class  -------------------------------------------
-#--------------------------------------------------------------------------    
-#--------------------------------------------------------------------------
-class BadCursorType(Exception):
-    def __init__(self, message):
-        super( BadCursorType , self ).__init__( message )
-    def __str__(self):
-        return repr(self.code)
-        
-class ArcGIS10xCursorWrapper( object ):
-    
-    def __init__( self, arcgis_version ):
-        self.arcgis_version = arcgis_version
-        self.cursor_types = dict( 
-                [ kv for kv in [ ( 'search', 'SearchCursor' ),
-                                     ( 'insert', 'InsertCursor' ), 
-                                     ( 'update', 'UpdateCursor' ) ] 
-                ]
-        )
-        self.cursor = None
-        
-    def _set_cursor( self, cursor_type ):
-        if cursor_type not in self.cursor_types.values():
-            raise BadCursorType(
-                "The cursor you passed in [ %s ] is not one of the cursor types %s" % 
-                ( cursor_type, str( self.cursor_types.values() ) )
-            )
-        if self.arcgis_version == '10.1':
-            self.cursor = getattr( arcpy.da , cursor_type )
-        elif self.arcgis_version == '10.0':
-            self.cursor = getattr( arcpy , cursor_type )
-        
-        msg( "[ CREATED ]: cursor of type = %s" % str( self.cursor ) )
-        return self.cursor
-            
-    def insert( self, target_gdb, target_object, fields, records, **kwargs ):
-        """
-        TODO: list needed kwargs here
-        <destination_gdb>
-        <fields>
-        <records>
-        """
-        if self.cursor.__class__.__name__ != self.cursor_types['insert']:
-            raise BadCursorType(
-                "The method insert() cannot operate with cursor type of %s" % 
-                ( self.cursor.__class__.__name__ )
-            )
-    
-        #
-        # ArcGIS 10.1 version requires an edit session and edit operations
-        #
-        edit_session = None
-        if self.arcgis_version == '10.1':
-            #
-            # Create and start an edit session.
-            # A single edit session is comprised of multiple edit operations
-            #
-            from arcpy.da import Editor
-            edit_session = Editor( kwargs.get( 'datasource', None ) )
-            edit_session.startEditing()
-    
-        #
-        # Begin insert of records
-        #
-        successful_insert = 0
-        for row in records:
-            msg( '[ INSERTING ]: %s' % str(row) )
-            if edit_session: # 10.1 version
-                #
-                #
-                #  for each row, start and edit operation and create a new InsertCursor.
-                #  NOTE: Reccomended in ESRI help to create new InsertCursor for each edit.
-                #
-                #
-                edit_session.startOperation()
-                with self.cursor( os.path.join( target_gdb, target_object ), fields) as insert_cursor:
-                    insert_cursor.insertRow(row)
-
-                edit_session.stopOperation()
-            else: # 10.0 version
-#                insert_cursor = InsertCursor(os.path.join(destGDB, object), fields)
-#                insert_row = insert_cursor.newRow()
-#                insert_cursor.insertRow(insert_row) 
-#                del insert_cursor
-                pass
-                
-            successful_insert += 1
-        #
-        #  close and save edits.
-        #
-        if edit_session: # 10.1 version
-            edit_session.stopEditing(True)
-        
-        msg( '[ LOADED ]: %s records' % str( successful_insert ) )
-
           
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
@@ -302,20 +191,6 @@ if __name__ == "__main__":
             reader = csv.DictReader(open(fullTransFile,'rbU'))  
             
             # Create an empty feature class for the shapefile
-            
-            # in 9.2, TestSchemaLock returns a string ('TRUE','FALSE','ERROR'), not a true Boolean
-            # Also, in 9.2, there is a bug, so it works outside ArcCatalog/ArcMap, but not within
-            # In 9.2, it just dies without any sort of error indication -- says it was successful - Yuck
-            # This workaround didn't work: http://forums.esri.com/Thread.asp?c=93&f=1729&t=251511#774023
-            #workspace = os.path.dirname(outFCFull)
-            #schemaTest = 'TRUE'
-            #if os.path.exists(outFCFull):
-                #msg("Feature class already exists")
-                ##schemaTest = TestSchemaLock(outFCFull)
-                #schemaTest = TestSchemaLock(outFC)
-            #if schemaTest == 'TRUE':
-            # Can't use schema Lock test in 9.2, therefore, if it can't create out FC, just give suggestions
-            # This section would be further indented within an if/else for Schema Lock test if it worked
             try: 
                 # Create Feature class and add fields
                 fc = arcpy.CreateFeatureclass_management(outDir,outFC,"POINT","#","#","#",outCoordSys)
@@ -331,35 +206,32 @@ if __name__ == "__main__":
                 errtext += "\nIf you are viewing the data in ArcCatalog, change directories and choose 'Refresh' under the 'View' menu."
                 errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
                 e.call(errtext)
-            #else:
-                #errtext = "Unable to obtain schema lock for:\n%s" % outFCFull
-                #errtext += "\nTry closing ArcMap, or other applications that may be accessing these data."
-                #errtext += "\nIf you are viewing the data in ArcCatalog, \nchange directories and choose 'Refresh' under the 'View' menu."
-                #e.call(errtext)
 
+            #
             # Create Insert Cursor, with input spatial reference info
             # Allows projection on the fly from source data to output shapefile
-            #arc_cursor_wrapper = ArcGIS10xCursorWrapper( arcgis_version )
-            #cur_class = arc_cursor_wrapper._set_cursor( 'InsertCursor' )
-            cur = arcpy.InsertCursor(outFCFull,inSpatialRef)
-            #cur = cur_class(outFCFull,inSpatialRef)
+            #
+            cursor_wrapper = ArcGIS10xCursorWrapper( 'InsertCursor' )._get_cursor()
+            # in the future, we will not return a cursor
+            # just use the wrapper class for all calls
+            cur = cursor_wrapper(outFCFull,inSpatialRef)
             pnt = arcpy.CreateObject("Point")
 
             msg("Populating data table of '%s'" % outFC)
             for idx, row in enumerate(reader):
                 # Convert and create the geometries
                 csv_row = idx + 2
-                pnt.Id = idx + 1
+                pnt.ID = idx + 1
                 lon,lat = row[utils.sourceLonCol],row[utils.sourceLatCol]
                 # convert lat/long values in csv file to decimal degrees
                 try:
-                    pnt.x = utils.dm2dd(lon)
+                    pnt.X = utils.dm2dd(lon)
                 except:
                     errtext = "Unable to convert source longitude, %s, to decimal degree format" % lon
                     errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
                     e.call(errtext)
                 try:                  
-                    pnt.y = utils.dm2dd(lat)
+                    pnt.Y = utils.dm2dd(lat)
                 except:
                     errtext = "Error converting source latitude, %s, to decimal degree format" % lat
                     errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
