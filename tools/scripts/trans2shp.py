@@ -101,6 +101,12 @@ if __name__ == "__main__":
     
 
     try:
+        #
+        #
+        #  make overwriteOutput ENV = True
+        #
+        #
+        arcpy.env.overwriteOutput = True
         # Create the custom error class
         # and associate it with the arcpy
         e = SvmpToolsError( arcpy )
@@ -208,13 +214,40 @@ if __name__ == "__main__":
                 e.call(errtext)
 
             #
-            # Create Insert Cursor, with input spatial reference info
-            # Allows projection on the fly from source data to output shapefile
             #
-            cursor_wrapper = ArcGIS10xCursorWrapper( 'InsertCursor' )._get_cursor()
-            # in the future, we will not return a cursor
-            # just use the wrapper class for all calls
-            cur = cursor_wrapper(outFCFull,inSpatialRef)
+            #  Create Insert Cursor
+            #  ---------------------
+            #  if v10.0 cursor, it is created with input spatial reference info
+            #  allowing projection on the fly from source data to output shapefile
+            #  
+            #  if v10.1 cursor, PointGeometry takes spatial reference info
+            #  to allow projection on the fly from source data to output shapefile
+            #
+            #  the ArcGIS10xCursorWrapper figures out which cursor
+            #  to use based on the ArcGIS version.
+            #  for utility calls to the ArcGIS10xCursorWrapper instance.arcgis_version
+            #  can be made to navigate any other cursor version branching
+            #  
+            #  to instantiate a new cursor you pass a keyword-dictionary config
+            #  object into the ArcGIS10xCursorWrapper's create() method ( see example below )
+            #  the recommended keyword args to use in the kwconfig object are shown below too.
+            #  for more information look at notes in arcgis_cursor_wrapper.ArcGIS10xCursorWrapper.create
+            #  
+            #
+            kwconfig = {
+                'target_datasource' : outFCFull ,
+                'spatial_ref_obj' : inSpatialRef ,
+            }
+            cwrapper = ArcGIS10xCursorWrapper( 'InsertCursor', force_v100_cursor=False )
+            if cwrapper.arcgis_version == '10.1':
+                #
+                #  we have to add geom to fieldnames to handle geom
+                #  and Id for Id handling since it's created by default
+                #
+                fieldnames.insert( 0, "SHAPE@" )
+                fieldnames.insert( 1, "Id" )
+                kwconfig.update( { 'fields' : fieldnames } )
+            cur = cwrapper.create( **kwconfig )
             pnt = arcpy.CreateObject("Point")
 
             msg("Populating data table of '%s'" % outFC)
@@ -235,14 +268,45 @@ if __name__ == "__main__":
                 except:
                     errtext = "Error converting source latitude, %s, to decimal degree format" % lat
                     errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
-                    e.call(errtext)                    
+                    e.call(errtext)
+                    
+                #                    
                 # Create the features
-                feat = cur.newRow()
-                # Assign the point to the shape attribute
-                feat.shape = pnt
-                feat.Id = idx + 1
+                # 
+                feat = None
+                if cwrapper.arcgis_version == '10.0':  
+                    # create a new feature
+                    feat = cur.new_row()
+                    # assign the point to the shape attribute
+                    feat.shape = pnt
+                    feat.Id = idx + 1
+                elif cwrapper.arcgis_version == '10.1':
+                    # create a new feature
+                    feat = []
+                    # we need the inCoordSrs srs on the geom object
+                    # so it can handle on-the-fly reprojction
+                    # when it writes to outCoordSrs
+                    srs = arcpy.SpatialReference()
+                    srs.factoryCode = 4326 # proj of csv points
+                    srs.create()
+                    point_geom = arcpy.PointGeometry( arcpy.Point( pnt.X, pnt.Y ), srs )
+                    feat.append( point_geom )
+                    # we also need to increment id here
+                    # since id field is created by default
+                    feat.append( idx + 1 )
+ 
                 # Collect and assign Feature attributes
                 for field in fieldnames:
+                    #
+                    #  for cursor v10.1 we
+                    #  already updated feat
+                    #  with the SHAPE@ and Id
+                    #  values in above code
+                    #  so we skip here
+                    #
+                    if field in [ 'SHAPE@', 'Id' ]: 
+                        continue
+                    
                     csv_field_name = utils.mapping[field]
                     value = row.get(csv_field_name)
                     # Convert null values to a nonsense number for dbf file
@@ -250,12 +314,25 @@ if __name__ == "__main__":
                         value = utils.nullDep
                     # Catch erroneous data types here (string in a numeric type)
                     try:
-                        feat.setValue(field,value)
+                        if cwrapper.arcgis_version == '10.0':
+                            feat.setValue(field,value)
+                        elif cwrapper.arcgis_version == '10.1':
+                            feat.append( value )
                     except:
                         errtext = "Error in input CSV file, row: %s and column: %s" % (csv_row,field)
                         e.call(errtext)
                 try:
-                    cur.insertRow(feat)
+                    #
+                    # 
+                    # if cursor 10.1 then we
+                    # convert our list of inserts
+                    # into tuple
+                    #
+                    #
+                    if isinstance( feat, list ):
+                        feat = tuple( feat )
+                    #msg( "feature to insert = %s" % str( feat ) )
+                    cur.insert_row( feat )
                 except:
                     errtext = "Error in input CSV file row: %s" % (csv_row)
                     e.call(errtext)
