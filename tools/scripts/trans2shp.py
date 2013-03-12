@@ -120,7 +120,7 @@ if __name__ == "__main__":
         #  Default: Environment - current workspace
         # outParentDir: Output Data Parent Directory.  Default: Environment - scratch workspace
         # siteFile: Full Path of text file containing list of sites to process
-        inParentDir,siteFile,outParentDir = get(0),get(2),get(3)  
+        inParentDir,siteFile,outParentDir = get(0),get(2),get(3) 
         # Input Data Coordinate System.  Default:  GCS_WGS_1984
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
         # Survey Year for data to be processed
@@ -213,41 +213,7 @@ if __name__ == "__main__":
                 errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
                 e.call(errtext)
 
-            #
-            #
-            #  Create Insert Cursor
-            #  ---------------------
-            #  if v10.0 cursor, it is created with input spatial reference info
-            #  allowing projection on the fly from source data to output shapefile
-            #  
-            #  if v10.1 cursor, PointGeometry takes spatial reference info
-            #  to allow projection on the fly from source data to output shapefile
-            #
-            #  the ArcGIS10xCursorWrapper figures out which cursor
-            #  to use based on the ArcGIS version.
-            #  for utility calls to the ArcGIS10xCursorWrapper instance.arcgis_version
-            #  can be made to navigate any other cursor version branching
-            #  
-            #  to instantiate a new cursor you pass a keyword-dictionary config
-            #  object into the ArcGIS10xCursorWrapper's create() method ( see example below )
-            #  the recommended keyword args to use in the kwconfig object are shown below too.
-            #  for more information look at notes in arcgis_cursor_wrapper.ArcGIS10xCursorWrapper.create
-            #  
-            #
-            kwconfig = {
-                'target_datasource' : outFCFull ,
-                'spatial_ref_obj' : inSpatialRef ,
-            }
-            cwrapper = ArcGIS10xCursorWrapper( 'InsertCursor', force_v100_cursor=False )
-            if cwrapper.arcgis_version == '10.1':
-                #
-                #  we have to add geom to fieldnames to handle geom
-                #  and Id for Id handling since it's created by default
-                #
-                fieldnames.insert( 0, "SHAPE@" )
-                fieldnames.insert( 1, "Id" )
-                kwconfig.update( { 'fields' : fieldnames } )
-            cur = cwrapper.create( **kwconfig )
+            cur = arcpy.InsertCursor( outFCFull, inSpatialRef )
             pnt = arcpy.CreateObject("Point")
 
             msg("Populating data table of '%s'" % outFC)
@@ -270,43 +236,14 @@ if __name__ == "__main__":
                     errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
                     e.call(errtext)
                     
-                #                    
-                # Create the features
-                # 
-                feat = None
-                if cwrapper.arcgis_version == '10.0':  
-                    # create a new feature
-                    feat = cur.new_row()
-                    # assign the point to the shape attribute
-                    feat.shape = pnt
-                    feat.Id = idx + 1
-                elif cwrapper.arcgis_version == '10.1':
-                    # create a new feature
-                    feat = []
-                    # we need the inCoordSrs srs on the geom object
-                    # so it can handle on-the-fly reprojction
-                    # when it writes to outCoordSrs
-                    srs = arcpy.SpatialReference()
-                    srs.factoryCode = 4326 # proj of csv points
-                    srs.create()
-                    point_geom = arcpy.PointGeometry( arcpy.Point( pnt.X, pnt.Y ), srs )
-                    feat.append( point_geom )
-                    # we also need to increment id here
-                    # since id field is created by default
-                    feat.append( idx + 1 )
- 
+                feat = cur.newRow()
+                # assign the point to the shape attribute
+                feat.shape = pnt
+                # increment the id
+                feat.Id = idx + 1
+                
                 # Collect and assign Feature attributes
                 for field in fieldnames:
-                    #
-                    #  for cursor v10.1 we
-                    #  already updated feat
-                    #  with the SHAPE@ and Id
-                    #  values in above code
-                    #  so we skip here
-                    #
-                    if field in [ 'SHAPE@', 'Id' ]: 
-                        continue
-                    
                     csv_field_name = utils.mapping[field]
                     value = row.get(csv_field_name)
                     # Convert null values to a nonsense number for dbf file
@@ -314,29 +251,17 @@ if __name__ == "__main__":
                         value = utils.nullDep
                     # Catch erroneous data types here (string in a numeric type)
                     try:
-                        if cwrapper.arcgis_version == '10.0':
-                            feat.setValue(field,value)
-                        elif cwrapper.arcgis_version == '10.1':
-                            feat.append( value )
+                        feat.setValue(field,value)
                     except:
                         errtext = "Error in input CSV file, row: %s and column: %s" % (csv_row,field)
                         e.call(errtext)
                 try:
-                    #
-                    # 
-                    # if cursor 10.1 then we
-                    # convert our list of inserts
-                    # into tuple
-                    #
-                    #
-                    if isinstance( feat, list ):
-                        feat = tuple( feat )
-                    #msg( "feature to insert = %s" % str( feat ) )
-                    cur.insert_row( feat )
+                    cur.insertRow( feat )
                 except:
                     errtext = "Error in input CSV file row: %s" % (csv_row)
                     e.call(errtext)
-            del cur         
+            del cur
+    
 
     except SystemExit:
         pass

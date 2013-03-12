@@ -34,6 +34,10 @@ class BadCursorType( BaseCursorError ):
 class NoneCursorType( BaseCursorError ):
     def __init__(self, message):
         super( self.__class__.__name__, self ).__init__( message )
+        
+class NoneCursorRefType( BaseCursorError ):
+    def __init__(self, message):
+        super( self.__class__.__name__, self ).__init__( message )
 
 class BadRowObject( BaseCursorError ):
     def __init__(self, message):
@@ -110,7 +114,7 @@ class ArcGIS10xCursorWrapper( object ):
             self.cursor = self.cursor_ref( target_datasource, fields )
         
         if not self.cursor:
-            raise NoneCursorType( "self.cursor is None")
+            raise NoneCursorType( "self.cursor is not set")
         
         return self
         
@@ -125,23 +129,31 @@ class ArcGIS10xCursorWrapper( object ):
         elif self.arcgis_version == '10.0':
             self.cursor_ref = getattr( arcpy , cursor_type )
             
+        if not self.cursor_ref:
+            raise NoneCursorRefType( "self.cursor_ref is not set" )
+            
     def new_row( self, ):
         """
-        handles calls to newRow for version 10.0
+        pass back a row object for speciific 10.x cursor version.
+        For example, v10.0 returns a Row object and calls newRow
+        whereas v10.1 returns a list object which 10.1 uses as a row
         """
         if self.arcgis_version == '10.0':
             return self.cursor.newRow()
+        elif self.arcgis_version == '10.1':
+            return []
+        
     
     def insert_row( self, row_object ):
         """
         handles calls to insertRow between 10.0 and 10.1
         ------------------------------------------------
         < row_object > : in 10.0 this is Cursor.row object
-        < row_object > : in 10.1 this is a tuple
+        < row_object > : in 10.1 this is a tuple or list
         """
         if self.arcgis_version == '10.0' and isinstance( row_object, arcpy.arcobjects.Row ):
             self.cursor.insertRow( row_object )
-        elif self.arcgis_version == '10.1' and isinstance( row_object, tuple ):
+        elif self.arcgis_version == '10.1' and ( isinstance( row_object, tuple ) or isinstance( row_object, list ) ):
             self.cursor.insertRow( row_object )
         else:
             raise BadRowObject( "The row_object = %s does not match arcgis_version = %s" % 

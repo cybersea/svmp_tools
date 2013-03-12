@@ -425,6 +425,23 @@ def dm2dd(coordDegMin):
 # Due to a peculiarity with the Cursors in ArcGIS, InsertCursor
 # will only accept a COM Object version of the Spatial Reference
 # Which is only available when doing a describe on a feature class
+
+#
+#
+#  we can also get a spatial reference
+#  by explictly creating it
+#  however, important to note
+#  that the two ways we get these
+#  objects result in different SpatialRef objects
+#  arcpy.Describe --> spatial ref geoprocessing obj
+#  arcpy.SpatialReference --> arcobjects.SpatialReference object
+#
+#
+'''
+srs = arcpy.SpatialReference()
+srs.factoryCode = 4326 # proj of csv points
+srs.create()
+'''
 def make_spatRef( arcpy,aDir,coordSys):
     tempName = 'tmp4sr.shp'
     tempFC = arcpy.CreateFeatureclass_management(aDir,tempName,"POINT","#","#","#",coordSys)
