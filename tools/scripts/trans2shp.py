@@ -131,9 +131,9 @@ if __name__ == "__main__":
         # Get list of subdirectories within input data parent directory
         inSubDirList = utils.make_subDirList(inParentDir)
         # Get list of subdirectories in output parent directory
-        outSubDirList = utils.make_subDirList(outParentDir)
+        #outSubDirList = utils.make_subDirList(outParentDir)
         # Find out if the output site directories have the subdirectory for transect data
-        outSubDirList[:] = [d for d in outSubDirList if os.path.isdir(os.path.join(outParentDir,d,utils.ptShpSubDir))]
+        #outSubDirList[:] = [d for d in outSubDirList if os.path.isdir(os.path.join(outParentDir,d,utils.ptShpSubDir))]
                       
         # Get site list from input text file
         siteList = utils.make_siteList(siteFile)
@@ -148,10 +148,10 @@ if __name__ == "__main__":
             # Construct input dirs
             inDir = os.path.join(inParentDir, site)
             # Construct output dirs
-            outDir = os.path.join(outParentDir,site,utils.ptShpSubDir)
+            outDir = outParentDir  #os.path.join(outParentDir,site) #utils.ptShpSubDir)
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
             fullTransFile = os.path.join(inDir, '%s%s' % (site,'TD.csv'))
-            outFC = '%s_%s%s' % (surveyYear,site,utils.ptShpSuffix)
+            outFC = '%s_%s' % (surveyYear,site) #utils.ptShpSuffix)
             # Make list of transect files, output directories, output feature class, and site name
             sites_to_process.append([fullTransFile,outDir,outFC,site])
             # Validate presence of input transect file
@@ -160,7 +160,7 @@ if __name__ == "__main__":
         
         # Compare site list to directory lists (in and out) to check for folder and file existence
         missingInDir = [d for d in siteList if d not in inSubDirList]
-        missingOutDir = [d for d in siteList if d not in outSubDirList]  
+        missingOutDir = [] #[d for d in siteList if d not in outSubDirList]  
         errtext = ""
         if missingInDir or missingOutDir or missingTransFile:
             if missingInDir:
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             
         # Create input Spatial Reference for use in Cursor
         msg('Fetching Spatial Reference')
-        inSpatialRef = utils.make_spatRef(arcpy,outParentDir,inCoordSys)
+        inSpatialRef = utils.make_spatRef(arcpy,os.path.dirname( outParentDir ),inCoordSys)
         
         msg("Processing %s site(s) requested in '%s'" % (len(siteList),siteFile))
         # Now loop through and process sites
@@ -199,7 +199,8 @@ if __name__ == "__main__":
             # Create an empty feature class for the shapefile
             try: 
                 # Create Feature class and add fields
-                fc = arcpy.CreateFeatureclass_management(outDir,outFC,"POINT","#","#","#",outCoordSys)
+                msg( '[ COMMAND ]: arcpy.CreateFeatureclass_management("%s","%s","POINT","#","#","#","%s")' % ( os.path.join( outDir ), outFC, outCoordSys ) )
+                fc = arcpy.CreateFeatureclass_management( os.path.join( outDir ),outFC,"POINT","#","#","#",outCoordSys)
                 # Add Fields to the feature class
                 fieldnames = addDatFields(utils.trkPtShpCols,outFCFull)
                 msg("Created Feature Class: '%s'" % outFC)
