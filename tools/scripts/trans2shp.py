@@ -37,6 +37,7 @@
 import os
 import sys
 import csv
+import re
 import arcpy
 
 # Import constants and Utility Functions for SVMP processing
@@ -148,10 +149,10 @@ if __name__ == "__main__":
             # Construct input dirs
             inDir = os.path.join(inParentDir, site)
             # Construct output dirs
-            outDir = outParentDir  #os.path.join(outParentDir,site) #utils.ptShpSubDir)
+            outDir = os.path.join( outParentDir ) #os.path.join(outParentDir,site) #utils.ptShpSubDir)
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
             fullTransFile = os.path.join(inDir, '%s%s' % (site,'TD.csv'))
-            outFC = '%s_%s' % (surveyYear,site) #utils.ptShpSuffix)
+            outFC = '_%s_%s' % (surveyYear,site) #utils.ptShpSuffix)
             # Make list of transect files, output directories, output feature class, and site name
             sites_to_process.append([fullTransFile,outDir,outFC,site])
             # Validate presence of input transect file
@@ -199,8 +200,8 @@ if __name__ == "__main__":
             # Create an empty feature class for the shapefile
             try: 
                 # Create Feature class and add fields
-                msg( '[ COMMAND ]: arcpy.CreateFeatureclass_management("%s","%s","POINT","#","#","#","%s")' % ( os.path.join( outDir ), outFC, outCoordSys ) )
-                fc = arcpy.CreateFeatureclass_management( os.path.join( outDir ),outFC,"POINT","#","#","#",outCoordSys)
+                msg( '[ COMMAND ]: arcpy.CreateFeatureclass_management("%s","%s","POINT","#","#","#","%s")' % ( outDir, outFC, outCoordSys ) )
+                fc = arcpy.CreateFeatureclass_management( outDir,outFC,"POINT","#","#","#",outCoordSys)
                 # Add Fields to the feature class
                 fieldnames = addDatFields(utils.trkPtShpCols,outFCFull)
                 msg("Created Feature Class: '%s'" % outFC)
@@ -240,8 +241,6 @@ if __name__ == "__main__":
                 feat = cur.newRow()
                 # assign the point to the shape attribute
                 feat.shape = pnt
-                # increment the id
-                feat.Id = idx + 1
                 
                 # Collect and assign Feature attributes
                 for field in fieldnames:
