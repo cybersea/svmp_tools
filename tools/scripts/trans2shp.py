@@ -152,7 +152,7 @@ if __name__ == "__main__":
             outDir = os.path.join( outParentDir ) #os.path.join(outParentDir,site) #utils.ptShpSubDir)
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
             fullTransFile = os.path.join(inDir, '%s%s' % (site,'TD.csv'))
-            outFC = '_%s_%s' % (surveyYear,site) #utils.ptShpSuffix)
+            outFC = '_%s_%s%s' % (surveyYear,site, os.path.splitext( utils.ptShpSuffix )[0] )
             # Make list of transect files, output directories, output feature class, and site name
             sites_to_process.append([fullTransFile,outDir,outFC,site])
             # Validate presence of input transect file
