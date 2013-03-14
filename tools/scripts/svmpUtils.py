@@ -54,8 +54,8 @@ sourceCols = [sourceTrkCol,
             sourceTimeCol,
             'BSdepth',
             'BSdepth_interp',
-            zmCol,
-            'Zj',
+            #zmCol,
+            #'Zj',
             'other',
             videoCol,
             'realtime',
@@ -79,13 +79,14 @@ trkCol = 'tran_num' # to match final database column name, changed from trk to t
 # Column names and definitions for output transect point shapefile
 # Number of items in list must match the input ascii file columns
 # and be in the same order for dictionary to set relationship
+trkPtAddtions = []
 trkPtShpCols = [[trkCol,'LONG','#','#','#'],
          [shpDateCol,'DATE','#','#','#'],
          ['Time24hr','TEXT','#','#','11'],
          ['BSdepth','DOUBLE','9','2','#'],
          [shpDepCol,'DOUBLE','9','2','#'],
-         [zmCol,'SHORT','#','#','#'],
-         ['Zj','SHORT','#','#','#'],
+         #[zmCol,'SHORT','#','#','#'],
+         #['Zj','SHORT','#','#','#'],
          ['other','SHORT','#','#','#'],
          [videoCol,'SHORT','#','#','#'],
          ['realtime','SHORT','#','#','#'],

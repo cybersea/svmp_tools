@@ -74,7 +74,7 @@ def addDatFields(cols,FC):
             fnames.append(fname)
     return fnames
 
-def test_csv(csv_input):
+def test_csv(csv_input, veg_code_lookup_path ):
     """Test opening a CSV File
     """
     csv_file = open(csv_input,'rbU')
@@ -88,6 +88,71 @@ def test_csv(csv_input):
         errtext = "The CSV file, '%s' is missing columns:\n%s" % (os.path.basename(csv_input), '\n'.join(missingFields))
         e.call(errtext)
         
+    #
+    #
+    #  get the difference between
+    #  expected source columns
+    #  and
+    #  csv read columns
+    #  these should *all* be
+    #  in the veg_code lookup
+    #
+    #
+    actual_csv_cols = frozenset( cols )
+    expected_csv_cols = frozenset( utils.sourceCols )
+    diff = actual_csv_cols.difference( expected_csv_cols )
+    utils.trkPtAddtions = [] # reset
+    
+    #
+    #  get valid veg_codes
+    #
+    #scurse = arcpy.SearchCursor( veg_code_lookup_path, where_clause="[veg_code] = '%s'" % (source_veg_code) )
+    scurse = arcpy.SearchCursor( veg_code_lookup_path  )
+    row = scurse.next()
+    valid_veg_codes = []
+    while row:
+        valid_veg_codes.append( row.getValue( 'veg_code' ) )
+        row = scurse.next()
+    # TODONOTE: there has to be a hardcoded veg_code type lookup list or else how will we know what's coming in]
+    for source_veg_code in [ i for i in list( diff ) if i in valid_veg_codes ]:         
+        #
+        #
+        #  add it to global holder
+        #  TODONOTE:this will become a class later
+        #  and it can be held there
+        #
+        #     
+        utils.trkPtAddtions.append( [source_veg_code, 'SHORT', '#', '#', '#'] )
+    
+    #
+    #
+    #  add veg_code fields 
+    #  to the trkPtShpCols
+    #  we insert them before
+    #  'other' column here
+    #  because we do not have
+    #  any other option yet
+    #   
+    #
+    for field in utils.trkPtAddtions:
+        try:
+            insert_indx = utils.trkPtShpCols.index( ['other','SHORT','#','#','#'] )
+            utils.trkPtShpCols.insert( insert_indx, field )
+        except ValueError:
+            errtext = "ValueError when searching for column 'other' in trckShpCols\n"
+            e.call(errtext)
+            
+        #
+        #
+        #  the update the utils.mapping object
+        #  TODONOTE: we won't need this in the future
+        #  because the expected fields will not be in synch
+        #  with acutal csv fields anymore because of veg field lookup requirement
+        #  this will change when we move to class-based module
+        #
+        #
+        utils.mapping[field[0]] = field[0]
+
     csv_file.close()
 
         
@@ -126,6 +191,8 @@ if __name__ == "__main__":
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
         # Survey Year for data to be processed
         inCoordSys,outCoordSys, surveyYear = get(1),get(4),get(5)
+        
+        veg_code_lookup = get(6)
 
         #--- CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
         #-------------------------------------------------------------------
@@ -139,6 +206,12 @@ if __name__ == "__main__":
         # Get site list from input text file
         siteList = utils.make_siteList(siteFile)
         
+        
+        #
+        #
+        #  MAKE LISTS OF PROCESS DATA
+        #
+        #
         # Create list of output transect files and output feature classes
         # and check for existence of input file
         msg('List of sites to process:\n%s' % '\n'.join(siteList))
@@ -159,6 +232,12 @@ if __name__ == "__main__":
             if not os.path.isfile(fullTransFile):
                 missingTransFile.append(fullTransFile)
         
+        
+        #
+        #
+        #   QC FILE EXISTENCE
+        #
+        #
         # Compare site list to directory lists (in and out) to check for folder and file existence
         missingInDir = [d for d in siteList if d not in inSubDirList]
         missingOutDir = [] #[d for d in siteList if d not in outSubDirList]  
@@ -187,7 +266,7 @@ if __name__ == "__main__":
             
             if os.path.exists(fullTransFile):
                 # Test opening with lightwight validation
-                test_csv(fullTransFile)
+                test_csv(fullTransFile, veg_code_lookup)
                 msg("CSV file, '%s', found and opened successfully" % os.path.basename(fullTransFile))
             else:
                 e.call("CSV file '%s' cannot be found" % fullTransFile)
@@ -195,12 +274,14 @@ if __name__ == "__main__":
             msg("Converting Site: '%s'" % site)
             
             # Now let's truly open the file for processing
+            #
+            #  TODONOTE: we can consolidate this with first call to csv reader
+            #
             reader = csv.DictReader(open(fullTransFile,'rbU'))  
             
             # Create an empty feature class for the shapefile
             try: 
                 # Create Feature class and add fields
-                msg( '[ COMMAND ]: arcpy.CreateFeatureclass_management("%s","%s","POINT","#","#","#","%s")' % ( outDir, outFC, outCoordSys ) )
                 fc = arcpy.CreateFeatureclass_management( outDir,outFC,"POINT","#","#","#",outCoordSys)
                 # Add Fields to the feature class
                 fieldnames = addDatFields(utils.trkPtShpCols,outFCFull)
