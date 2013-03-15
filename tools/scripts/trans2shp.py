@@ -49,6 +49,10 @@ from arcgis_cursor_wrapper import ArcGIS10xCursorWrapper
 # Import the custom Exception class for handling errors
 from svmp_exceptions import SvmpToolsError
 
+# our worker classes
+from transect_datasource import TransectDatasource
+from transect_csv import TransectCSV
+
 STEP = 1
 def msg(msg):
     global STEP
@@ -61,129 +65,129 @@ def msg(msg):
 # Add Data Fields to Feature Class
 # Assumes order of field definitions same as AddField geoprocessing tool
 # Requires a list of lists with field definitions
-def addDatFields(cols,FC):
-    fnames = []
-    for col in cols:
-        if col:
-            fname = col[0]
-            ftype = col[1]
-            fprecision = col[2]
-            fscale = col[3]
-            flength = col[4]
-            arcpy.AddField_management(FC,fname,ftype,fprecision,fscale,flength)
-            fnames.append(fname)
-    return fnames
+#def addDatFields(cols,FC):
+#    fnames = []
+#    for col in cols:
+#        if col:
+#            fname = col[0]
+#            ftype = col[1]
+#            fprecision = col[2]
+#            fscale = col[3]
+#            flength = col[4]
+#            arcpy.AddField_management(FC,fname,ftype,fprecision,fscale,flength)
+#            fnames.append(fname)
+#    return fnames
 #
 #
 #  TODONOTE: these next two functions will become
 #  class-based functinos. proof-of-concept for now
 # 
 #
-def get_fkey( featureclass_path, lookup_key, lookup_value ):
-    """
-    this generic functions assumes that the path being passed
-    in is to a featureclass inside a geodatabase of some kind
-    """
-    
-    search_string = ""
-    if isinstance( lookup_value, int ):
-        search_string = "[%s] = %s"
-    elif isinstance( lookup_value, str ):
-        search_string = "[%s] = '%s'"
-    search_string = search_string %( lookup_key, str( lookup_value ) )
-  
-    scurse = arcpy.SearchCursor( featureclass_path, where_clause=search_string )
-    row = scurse.next()
-    if not row:
-        errtext = "You tried to do a Fkey lookup '%s' on table [ %s ] and it does not exist" % ( featureclass_path, search_string )
-        e.call(errtext)
-        
-    fkey = row.getValue( "OBJECTID" )
-    del row, scurse
-    return fkey
-        
-def test_csv(csv_input, veg_code_lookup_path ):
-    """Test opening a CSV File
-    """
-    csv_file = open(csv_input,'rbU')
-    csv_reader = csv.DictReader(csv_file)  # use this instead
-    cols = csv_reader.reader.next()
-    
-    # Compare CSV column headers to list of required headers
-    # to identify missing fields
-    missingFields = [f for f in utils.sourceCols if f not in cols] 
-    if missingFields:
-        errtext = "The CSV file, '%s' is missing columns:\n%s" % (os.path.basename(csv_input), '\n'.join(missingFields))
-        e.call(errtext)
-        
-    #
-    #
-    #  get the difference between
-    #  expected source columns
-    #  and
-    #  csv read columns
-    #  these should *all* be
-    #  in the veg_code lookup
-    #
-    #
-    actual_csv_cols = frozenset( cols )
-    expected_csv_cols = frozenset( utils.sourceCols )
-    diff = actual_csv_cols.difference( expected_csv_cols )
-    utils.trkPtAddtions = [] # reset
-    
-    #
-    #  get valid veg_codes
-    #
-    #scurse = arcpy.SearchCursor( veg_code_lookup_path, where_clause="[veg_code] = '%s'" % (source_veg_code) )
-    scurse = arcpy.SearchCursor( veg_code_lookup_path  )
-    row = scurse.next()
-    valid_veg_codes = []
-    while row:
-        valid_veg_codes.append( row.getValue( 'veg_code' ) )
-        row = scurse.next()
-        
-    del row, scurse
-    # TODONOTE: there has to be a hardcoded veg_code type lookup list or else how will we know what's coming in]
-    for source_veg_code in [ i for i in list( diff ) if i in valid_veg_codes ]:         
-        #
-        #
-        #  add it to global holder
-        #  TODONOTE:this will become a class later
-        #  and it can be held there
-        #
-        #     
-        utils.trkPtAddtions.append( [source_veg_code, 'SHORT', '#', '#', '#'] )
-    
-    #
-    #
-    #  add veg_code fields 
-    #  to the trkPtShpCols
-    #  we insert them before
-    #  'other' column here
-    #  because we do not have
-    #  any other option yet
-    #   
-    #
-    for field in utils.trkPtAddtions:
-        try:
-            insert_indx = utils.trkPtShpCols.index( ['other','SHORT','#','#','#'] )
-            utils.trkPtShpCols.insert( insert_indx, field )
-        except ValueError:
-            errtext = "ValueError when searching for column 'other' in trckShpCols\n"
-            e.call(errtext)
-            
-        #
-        #
-        #  the update the utils.mapping object
-        #  TODONOTE: we won't need this in the future
-        #  because the expected fields will not be in synch
-        #  with acutal csv fields anymore because of veg field lookup requirement
-        #  this will change when we move to class-based module
-        #
-        #
-        utils.mapping[field[0]] = field[0]
-
-    csv_file.close()
+#def get_fkey( featureclass_path, lookup_key, lookup_value ):
+#    """
+#    this generic functions assumes that the path being passed
+#    in is to a featureclass inside a geodatabase of some kind
+#    """
+#    
+#    search_string = ""
+#    if isinstance( lookup_value, int ):
+#        search_string = "[%s] = %s"
+#    elif isinstance( lookup_value, str ):
+#        search_string = "[%s] = '%s'"
+#    search_string = search_string %( lookup_key, str( lookup_value ) )
+#  
+#    scurse = arcpy.SearchCursor( featureclass_path, where_clause=search_string )
+#    row = scurse.next()
+#    if not row:
+#        errtext = "You tried to do a Fkey lookup '%s' on table [ %s ] and it does not exist" % ( featureclass_path, search_string )
+#        e.call(errtext)
+#        
+#    fkey = row.getValue( "OBJECTID" )
+#    del row, scurse
+#    return fkey
+#        
+#def test_csv(csv_input, veg_code_lookup_path ):
+#    """Test opening a CSV File
+#    """
+#    csv_file = open(csv_input,'rbU')
+#    csv_reader = csv.DictReader(csv_file)  # use this instead
+#    cols = csv_reader.reader.next()
+#    
+#    # Compare CSV column headers to list of required headers
+#    # to identify missing fields
+#    missingFields = [f for f in utils.sourceCols if f not in cols] 
+#    if missingFields:
+#        errtext = "The CSV file, '%s' is missing columns:\n%s" % (os.path.basename(csv_input), '\n'.join(missingFields))
+#        e.call(errtext)
+#        
+#    #
+#    #
+#    #  get the difference between
+#    #  expected source columns
+#    #  and
+#    #  csv read columns
+#    #  these should *all* be
+#    #  in the veg_code lookup
+#    #
+#    #
+#    actual_csv_cols = frozenset( cols )
+#    expected_csv_cols = frozenset( utils.sourceCols )
+#    diff = actual_csv_cols.difference( expected_csv_cols )
+#    utils.trkPtAddtions = [] # reset
+#    
+#    #
+#    #  get valid veg_codes
+#    #
+#    #scurse = arcpy.SearchCursor( veg_code_lookup_path, where_clause="[veg_code] = '%s'" % (source_veg_code) )
+#    scurse = arcpy.SearchCursor( veg_code_lookup_path  )
+#    row = scurse.next()
+#    valid_veg_codes = []
+#    while row:
+#        valid_veg_codes.append( row.getValue( 'veg_code' ) )
+#        row = scurse.next()
+#        
+#    del row, scurse
+#    # TODONOTE: there has to be a hardcoded veg_code type lookup list or else how will we know what's coming in]
+#    for source_veg_code in [ i for i in list( diff ) if i in valid_veg_codes ]:         
+#        #
+#        #
+#        #  add it to global holder
+#        #  TODONOTE:this will become a class later
+#        #  and it can be held there
+#        #
+#        #     
+#        utils.trkPtAddtions.append( [source_veg_code, 'SHORT', '#', '#', '#'] )
+#    
+#    #
+#    #
+#    #  add veg_code fields 
+#    #  to the trkPtShpCols
+#    #  we insert them before
+#    #  'other' column here
+#    #  because we do not have
+#    #  any other option yet
+#    #   
+#    #
+#    for field in utils.trkPtAddtions:
+#        try:
+#            insert_indx = utils.trkPtShpCols.index( ['other','SHORT','#','#','#'] )
+#            utils.trkPtShpCols.insert( insert_indx, field )
+#        except ValueError:
+#            errtext = "ValueError when searching for column 'other' in trckShpCols\n"
+#            e.call(errtext)
+#            
+#        #
+#        #
+#        #  the update the utils.mapping object
+#        #  TODONOTE: we won't need this in the future
+#        #  because the expected fields will not be in synch
+#        #  with acutal csv fields anymore because of veg field lookup requirement
+#        #  this will change when we move to class-based module
+#        #
+#        #
+#        utils.mapping[field[0]] = field[0]
+#
+#    csv_file.close()
 
         
 def get(idx):
@@ -292,97 +296,100 @@ if __name__ == "__main__":
         for path in sites_to_process:
             fullTransFile,outDir,outFC,site  = path[0],path[1],path[2],path[3]
             msg("-------- SITE ID: %s --------" % site)
-            outFCFull = os.path.join(outDir,outFC)
-            
-            if os.path.exists(fullTransFile):
-                # Test opening with lightwight validation
-                test_csv(fullTransFile, veg_code_lookup)
-                msg("CSV file, '%s', found and opened successfully" % os.path.basename(fullTransFile))
-            else:
-                e.call("CSV file '%s' cannot be found" % fullTransFile)
-
-            msg("Converting Site: '%s'" % site)
+            transect_csv = TransectCSV( fullTransFile, inCoordSys, veg_code_lookup )
+            datasource = TransectDatasource( outDir, outFC, trktype_code_lookup, outCoordSys, transect_csv )
+            datasource.write_output()
+#            outFCFull = os.path.join(outDir,outFC)
+#            
+#            if os.path.exists(fullTransFile):
+#                # Test opening with lightwight validation
+#                test_csv(fullTransFile, veg_code_lookup)
+#                msg("CSV file, '%s', found and opened successfully" % os.path.basename(fullTransFile))
+#            else:
+#                e.call("CSV file '%s' cannot be found" % fullTransFile)
+#
+#            msg("Converting Site: '%s'" % site)
             
             # Now let's truly open the file for processing
             #
             #  TODONOTE: we can consolidate this with first call to csv reader
             #
-            reader = csv.DictReader(open(fullTransFile,'rbU'))  
-            
+#            reader = csv.DictReader(open(fullTransFile,'rbU'))  
+#            
             # Create an empty feature class for the shapefile
-            try: 
-                # Create Feature class and add fields
-                fc = arcpy.CreateFeatureclass_management( outDir,outFC,"POINT","#","#","#",outCoordSys)
-                # Add Fields to the feature class
-                fieldnames = addDatFields(utils.trkPtShpCols,outFCFull)
-                msg("Created Feature Class: '%s'" % outFC)
-            except:
-                # <class 'pywintypes.com_error'>: (-2147467259, 'Unspecified error', None, None)
-                # schema lock error shows up automatically
-                errtext = "Unable to create feature class: '%s' or unable to add fields" % outFCFull
-                #errtext = "Unable to obtain schema lock for:\n%s" % outFCFull
-                errtext += "\nTry closing ArcMap, or other applications that may be accessing these data."
-                errtext += "\nIf you are viewing the data in ArcCatalog, change directories and choose 'Refresh' under the 'View' menu."
-                errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
-                e.call(errtext)
-
-            cur = arcpy.InsertCursor( outFCFull, inCoordSys )
-            pnt = arcpy.CreateObject("Point")
-
-            msg("Populating data table of '%s'" % outFC)
-            for idx, row in enumerate(reader):
-                # Convert and create the geometries
-                csv_row = idx + 2
-                pnt.ID = idx + 1
-                lon,lat = row[utils.sourceLonCol],row[utils.sourceLatCol]
-                # convert lat/long values in csv file to decimal degrees
-                try:
-                    pnt.X = utils.dm2dd(lon)
-                except:
-                    errtext = "Unable to convert source longitude, %s, to decimal degree format" % lon
-                    errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
-                    e.call(errtext)
-                try:                  
-                    pnt.Y = utils.dm2dd(lat)
-                except:
-                    errtext = "Error converting source latitude, %s, to decimal degree format" % lat
-                    errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
-                    e.call(errtext)
-                    
-                feat = cur.newRow()
-                # assign the point to the shape attribute
-                feat.shape = pnt
-                
-                # Collect and assign Feature attributes
-                for field in fieldnames:
-                    csv_field_name = utils.mapping[field]
-                    value = row.get(csv_field_name)
-                    
-                    #
-                    #  if this is TrkType, do a lookup
-                    #  because TryType in output featureclass
-                    #  is now a SHORT integer Fkey
-                    #  so we override it here
-                    #
-                    if csv_field_name == 'TrkType':
-                        # override value with lookup
-                        value = get_fkey( trktype_code_lookup, "trktype_code", value )
-                        
-                    # Convert null values to a nonsense number for dbf file
-                    if not value:
-                        value = utils.nullDep
-                    # Catch erroneous data types here (string in a numeric type)
-                    try:
-                        feat.setValue(field,value)
-                    except:
-                        errtext = "Error in input CSV file, row: %s and column: %s" % (csv_row,field)
-                        e.call(errtext)
-                try:
-                    cur.insertRow( feat )
-                except:
-                    errtext = "Error in input CSV file row: %s" % (csv_row)
-                    e.call(errtext)
-            del cur
+#            try: 
+#                # Create Feature class and add fields
+#                fc = arcpy.CreateFeatureclass_management( outDir,outFC,"POINT","#","#","#",outCoordSys)
+#                # Add Fields to the feature class
+#                fieldnames = addDatFields(utils.trkPtShpCols,outFCFull)
+#                msg("Created Feature Class: '%s'" % outFC)
+#            except:
+#                # <class 'pywintypes.com_error'>: (-2147467259, 'Unspecified error', None, None)
+#                # schema lock error shows up automatically
+#                errtext = "Unable to create feature class: '%s' or unable to add fields" % outFCFull
+#                #errtext = "Unable to obtain schema lock for:\n%s" % outFCFull
+#                errtext += "\nTry closing ArcMap, or other applications that may be accessing these data."
+#                errtext += "\nIf you are viewing the data in ArcCatalog, change directories and choose 'Refresh' under the 'View' menu."
+#                errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
+#                e.call(errtext)
+#
+#            cur = arcpy.InsertCursor( outFCFull, inCoordSys )
+#            pnt = arcpy.CreateObject("Point")
+#
+#            msg("Populating data table of '%s'" % outFC)
+#            for idx, row in enumerate(reader):
+#                # Convert and create the geometries
+#                csv_row = idx + 2
+#                pnt.ID = idx + 1
+#                lon,lat = row[utils.sourceLonCol],row[utils.sourceLatCol]
+#                # convert lat/long values in csv file to decimal degrees
+#                try:
+#                    pnt.X = utils.dm2dd(lon)
+#                except:
+#                    errtext = "Unable to convert source longitude, %s, to decimal degree format" % lon
+#                    errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
+#                    e.call(errtext)
+#                try:                  
+#                    pnt.Y = utils.dm2dd(lat)
+#                except:
+#                    errtext = "Error converting source latitude, %s, to decimal degree format" % lat
+#                    errtext += "\nCSV file, %s\nrow: %s" % (fullTransFile, csv_row)
+#                    e.call(errtext)
+#                    
+#                feat = cur.newRow()
+#                # assign the point to the shape attribute
+#                feat.shape = pnt
+#                
+#                # Collect and assign Feature attributes
+#                for field in fieldnames:
+#                    csv_field_name = utils.mapping[field]
+#                    value = row.get(csv_field_name)
+#                    
+#                    #
+#                    #  if this is TrkType, do a lookup
+#                    #  because TryType in output featureclass
+#                    #  is now a SHORT integer Fkey
+#                    #  so we override it here
+#                    #
+#                    if csv_field_name == 'TrkType':
+#                        # override value with lookup
+#                        value = get_fkey( trktype_code_lookup, "trktype_code", value )
+#                        
+#                    # Convert null values to a nonsense number for dbf file
+#                    if not value:
+#                        value = utils.nullDep
+#                    # Catch erroneous data types here (string in a numeric type)
+#                    try:
+#                        feat.setValue(field,value)
+#                    except:
+#                        errtext = "Error in input CSV file, row: %s and column: %s" % (csv_row,field)
+#                        e.call(errtext)
+#                try:
+#                    cur.insertRow( feat )
+#                except:
+#                    errtext = "Error in input CSV file row: %s" % (csv_row)
+#                    e.call(errtext)
+#            del cur
     
 
     except SystemExit:
