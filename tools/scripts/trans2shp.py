@@ -220,7 +220,7 @@ if __name__ == "__main__":
         # Input Data Coordinate System.  Default:  GCS_WGS_1984
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
         # Survey Year for data to be processed
-        inCoordSys,outCoordSys, surveyYear = get(1),get(4),get(5)
+        inCoordSys,outCoordSys, surveyYear = arcpy.GetParameter(1),arcpy.GetParameter(4),get(5)
         
         veg_code_lookup, trktype_code_lookup = get(6),get(7)
 
@@ -285,7 +285,7 @@ if __name__ == "__main__":
             
         # Create input Spatial Reference for use in Cursor
         msg('Fetching Spatial Reference')
-        inSpatialRef = utils.make_spatRef(arcpy,os.path.dirname( outParentDir ),inCoordSys)
+        #inSpatialRef = utils.make_spatRef(arcpy,os.path.dirname( outParentDir ),inCoordSys)
         
         msg("Processing %s site(s) requested in '%s'" % (len(siteList),siteFile))
         # Now loop through and process sites
@@ -326,7 +326,7 @@ if __name__ == "__main__":
                 errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
                 e.call(errtext)
 
-            cur = arcpy.InsertCursor( outFCFull, inSpatialRef )
+            cur = arcpy.InsertCursor( outFCFull, inCoordSys )
             pnt = arcpy.CreateObject("Point")
 
             msg("Populating data table of '%s'" % outFC)
