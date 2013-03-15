@@ -90,7 +90,7 @@ trkPtShpCols = [[trkCol,'LONG','#','#','#'],
          ['other','SHORT','#','#','#'],
          [videoCol,'SHORT','#','#','#'],
          ['realtime','SHORT','#','#','#'],
-         ['TrkType','TEXT','#','#','8'],
+         ['TrkType','SHORT','#','#','#'],
          [],
          []]
 

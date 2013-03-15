@@ -73,7 +73,35 @@ def addDatFields(cols,FC):
             arcpy.AddField_management(FC,fname,ftype,fprecision,fscale,flength)
             fnames.append(fname)
     return fnames
-
+#
+#
+#  TODONOTE: these next two functions will become
+#  class-based functinos. proof-of-concept for now
+# 
+#
+def get_fkey( featureclass_path, lookup_key, lookup_value ):
+    """
+    this generic functions assumes that the path being passed
+    in is to a featureclass inside a geodatabase of some kind
+    """
+    
+    search_string = ""
+    if isinstance( lookup_value, int ):
+        search_string = "[%s] = %s"
+    elif isinstance( lookup_value, str ):
+        search_string = "[%s] = '%s'"
+    search_string = search_string %( lookup_key, str( lookup_value ) )
+  
+    scurse = arcpy.SearchCursor( featureclass_path, where_clause=search_string )
+    row = scurse.next()
+    if not row:
+        errtext = "You tried to do a Fkey lookup '%s' on table [ %s ] and it does not exist" % ( featureclass_path, search_string )
+        e.call(errtext)
+        
+    fkey = row.getValue( "OBJECTID" )
+    del row, scurse
+    return fkey
+        
 def test_csv(csv_input, veg_code_lookup_path ):
     """Test opening a CSV File
     """
@@ -113,6 +141,8 @@ def test_csv(csv_input, veg_code_lookup_path ):
     while row:
         valid_veg_codes.append( row.getValue( 'veg_code' ) )
         row = scurse.next()
+        
+    del row, scurse
     # TODONOTE: there has to be a hardcoded veg_code type lookup list or else how will we know what's coming in]
     for source_veg_code in [ i for i in list( diff ) if i in valid_veg_codes ]:         
         #
@@ -192,7 +222,7 @@ if __name__ == "__main__":
         # Survey Year for data to be processed
         inCoordSys,outCoordSys, surveyYear = get(1),get(4),get(5)
         
-        veg_code_lookup = get(6)
+        veg_code_lookup, trktype_code_lookup = get(6),get(7)
 
         #--- CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
         #-------------------------------------------------------------------
@@ -327,6 +357,17 @@ if __name__ == "__main__":
                 for field in fieldnames:
                     csv_field_name = utils.mapping[field]
                     value = row.get(csv_field_name)
+                    
+                    #
+                    #  if this is TrkType, do a lookup
+                    #  because TryType in output featureclass
+                    #  is now a SHORT integer Fkey
+                    #  so we override it here
+                    #
+                    if csv_field_name == 'TrkType':
+                        # override value with lookup
+                        value = get_fkey( trktype_code_lookup, "trktype_code", value )
+                        
                     # Convert null values to a nonsense number for dbf file
                     if not value:
                         value = utils.nullDep
