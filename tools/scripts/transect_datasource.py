@@ -54,13 +54,14 @@ class TransectDatasource( object ):
         #  FEATURECLASS FIELDS
         #
         #
+        self.site_code = 'site_code'
         self.trkCol = 'tran_num' # to match final database column name, changed from trk to tran_num
         self.ptShpSubDir = 'video_transect_data'  # output subdirectory for point shapefile
         self.ptShpSuffix = '_transect_data.shp'  # suffix for output point shapefile     
-        self.shpDepCol = 'BSdepIntrp' # Interpolated Biosonics Depth column
+        self.shpDepCol = 'depth_interp' # Interpolated Biosonics Depth column
         self.shpDateCol = 'date_samp'  # Column with date of survey       
         self.time24hr = 'Time24hr'
-        self.bsdepth = 'BSdepth'
+        self.bsdepth = 'depth_obm'
         self.other = 'other'
         self.videoCol = 'video'  # Column for video data quality (0,1)
         self.realtime = 'realtime'
@@ -87,9 +88,12 @@ class TransectDatasource( object ):
     def _get_fields( self ):
         '''
         note this data structure also preserves field order
+        there is an assumption that this order
+        mirrors the TransectCSV._expected_columns() order
         '''
         return [ 
                 
+            [ self.site_code, 'TEXT', '#', '#', '10'],
             [ self.trkCol,'LONG','#','#','#' ],
             [ self.shpDateCol,'DATE','#','#','#' ],
             [ self.time24hr,'TEXT','#','#','11' ],

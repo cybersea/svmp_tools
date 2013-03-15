@@ -32,6 +32,7 @@ class TransectCSV( object ):
         #  EXPECTED SOURCE CSV COLUMNS
         #
         #  
+        self.site_code = 'Site'
         self.sourceLatCol = 'latitude'  # source ASCII data column name for latitude
         self.sourceLonCol = 'lon' # source ASCII data column name for longitude 
         self.sourceDateCol = 'date' # source ASCII data column name for data
@@ -62,10 +63,13 @@ class TransectCSV( object ):
     def _expected_columns( self ):
         '''
         note this data structure also preserves order
+        there is an assumption that this order
+        mirrors the TransectDatasource._get_fields() order
         '''
         
         return [
-                
+            
+            self.site_code ,
             self.sourceTrkCol ,
             self.sourceDateCol ,
             self.sourceTimeCol ,
