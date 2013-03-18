@@ -7,6 +7,36 @@ import os, sys, re
 import arcpy
 import csv
 
+#
+#
+#  app import
+#
+#
+def msg(msg):
+    arcpy.AddMessage(msg)
+
+
+#--------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
+#---------------------------   ERROR CLASSES   ----------------------------------------------
+#--------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
+
+class CsvFileNotFound( Exception ):
+    def __init__(self, message):
+        super( self.__class__.__name__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self.code)
+
+class MissingFields( Exception ):
+    def __init__(self, message):
+        super( self.__class__.__name__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self.code)
+    
+    
+    
+
 
 
 class TransectCSV( object ):
@@ -98,7 +128,8 @@ class TransectCSV( object ):
         #
         #
         if not os.path.exists( self.file_path ):
-            raise Exception( "The CSV file does not exist")
+            raise CsvFileNotFound( "CSV file '%s' cannot be found" % self.file_path )   
+        msg( "CSV file, '%s', found and opened successfully" % self.file_path )
         
         #
         #
@@ -115,7 +146,7 @@ class TransectCSV( object ):
         #
         missingFields = [ f for f in self._expected_columns() if f not in self.existing_cols ] 
         if missingFields:
-            raise Exception( "the csv file '%s' is missing fields '%s'" % ( self.file_path, self._expected_columns() ) )
+            raise MissingFields( "The CSV file, '%s' is missing columns:\n%s" % (os.path.basename( self.file_path ), '\n'.join( missingFields)) )
     
     
         #
@@ -139,9 +170,7 @@ class TransectCSV( object ):
         get all valid veg_codes from the veg_code table.
         these will be used to compare which fields in the csv
         are veg_codes and which are not for dynamic featureclass
-        column creation in TransectOuput class
-        ---------------------------------------------------------
-        < veg_code_table_path > : the full path to the veg_code lookup table
+        column creation in TransectDatasource class
         '''
 
         #

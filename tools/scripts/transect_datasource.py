@@ -17,6 +17,39 @@ import csv
 from transect_csv import TransectCSV
 import svmpUtils as utils
 
+def msg(msg):
+    arcpy.AddMessage(msg)
+
+#--------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
+#---------------------------   ERROR CLASSES   ----------------------------------------------
+#--------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
+
+class CreateFeatureClassError( Exception ):
+    def __init__(self, message):
+        super( self.__class__.__name__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self.code)
+    
+class SetValueError( Exception ):
+    def __init__(self, message):
+        super( self.__class__.__name__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self.code)
+    
+class InsertRowError( Exception ):
+    def __init__(self, message):
+        super( self.__class__.__name__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self.code)
+
+class DecimalDegreesConversionError( Exception ):
+    def __init__(self, message):
+        super( self.__class__.__name__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self.code)
+
 
 class TransectDatasource( object ):
     
@@ -82,7 +115,6 @@ class TransectDatasource( object ):
         self._add_veg_code_fields()
         self._create_field_mapping()
         self._create_featureclass()
-        self._add_featureclass_fields()
         
     
     def _get_fields( self ):
@@ -173,7 +205,16 @@ class TransectDatasource( object ):
                 
                 
     def _create_featureclass( self ):
-        arcpy.CreateFeatureclass_management( self.target_path, self.target_name, "POINT","#","#","#", self.output_spatial_ref )
+        try:
+            arcpy.CreateFeatureclass_management( self.target_path, self.target_name, "POINT","#","#","#", self.output_spatial_ref )
+            msg( "Created Feature Class: '%s'" % self.full_output_path )
+            self._add_featureclass_fields()
+        except arcpy.ExecuteError:
+            errtext = "Unable to create feature class: '%s' or unable to add fields" % self.full_output_path
+            errtext += "\nTry closing ArcMap, or other applications that may be accessing these data."
+            errtext += "\nIf you are viewing the data in ArcCatalog, change directories and choose 'Refresh' under the 'View' menu."
+            errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
+            raise CreateFeatureClassError( errtext )
         
     def _add_featureclass_fields( self ):
         fnames = []
@@ -236,16 +277,29 @@ class TransectDatasource( object ):
             reader = csv.DictReader( open(self.transect_csv.file_path,'rbU') )  
             icurse = arcpy.InsertCursor( self.full_output_path, self.transect_csv.input_spatial_ref )
             pnt = arcpy.CreateObject("Point")
+            msg("Populating data table of '%s'" % self.full_output_path)
             for idx, row in enumerate(reader):
                 # Convert and create the geometries
-                #csv_row = idx + 2
+                csv_row = idx + 2
                 pnt.ID = idx + 1
                 lon,lat = row[ self.transect_csv.sourceLonCol ],row[ self.transect_csv.sourceLatCol ]
-                # convert lat/long values in csv file to decimal degrees            
-                pnt.X = utils.dm2dd(lon)                 
-                pnt.Y = utils.dm2dd(lat)
-                feat = icurse.newRow()
+                # convert lat/long values in csv file to decimal degrees
+                try:         
+                    pnt.X = utils.dm2dd(lon)
+                except Exception:
+                    errtext = "Unable to convert source longitude, %s, to decimal degree format" % lon
+                    errtext += "\nCSV file, %s\nrow: %s" % ( self.full_output_path, csv_row )  
+                    raise DecimalDegreesConversionError( errtext )
+                                
+                try:               
+                    pnt.Y = utils.dm2dd(lat)
+                except Exception:
+                    errtext = "Error converting source latitude, %s, to decimal degree format" % lat
+                    errtext += "\nCSV file, %s\nrow: %s" % ( self.full_output_path, csv_row )
+                    raise DecimalDegreesConversionError( errtext )
+                    
                 # assign the point to the shape attribute
+                feat = icurse.newRow()
                 feat.shape = pnt
                 for target_field, source_field in self.field_mapping.items():
                     value = row.get( source_field )
@@ -265,8 +319,17 @@ class TransectDatasource( object ):
                         value = utils.nullDep
 
                     # set it
-                    feat.setValue( target_field, value )
-
-                icurse.insertRow( feat )
+                    try:
+                        feat.setValue( target_field, value )
+                    except Exception:
+                        errtext = "Error in input CSV file, row: %s and column: %s" % ( csv_row, target_field )
+                        raise SetValueError( errtext )
+                        
+                try:
+                    icurse.insertRow( feat )
+                except Exception:
+                    errtext = "Error in input CSV file, row: %s" % ( csv_row )
+                    raise InsertRowError( errtext )
+                    
             del icurse
         
