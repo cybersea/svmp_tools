@@ -28,25 +28,25 @@ def msg(msg):
 
 class CreateFeatureClassError( Exception ):
     def __init__(self, message):
-        super( self.__class__.__name__ , self ).__init__( message )
+        super( self.__class__ , self ).__init__( message )
     def __str__(self):
         return repr(self.code)
     
 class SetValueError( Exception ):
     def __init__(self, message):
-        super( self.__class__.__name__ , self ).__init__( message )
+        super( self.__class__, self ).__init__( message )
     def __str__(self):
         return repr(self.code)
     
 class InsertRowError( Exception ):
     def __init__(self, message):
-        super( self.__class__.__name__ , self ).__init__( message )
+        super( self.__class__ , self ).__init__( message )
     def __str__(self):
         return repr(self.code)
 
 class DecimalDegreesConversionError( Exception ):
     def __init__(self, message):
-        super( self.__class__.__name__ , self ).__init__( message )
+        super( self.__class__ , self ).__init__( message )
     def __str__(self):
         return repr(self.code)
 
@@ -94,10 +94,8 @@ class TransectDatasource( object ):
         self.shpDepCol = 'depth_interp' # Interpolated Biosonics Depth column
         self.shpDateCol = 'date_samp'  # Column with date of survey       
         self.time24hr = 'Time24hr'
-        self.bsdepth = 'depth_obm'
-        self.other = 'other'
+        self.bsdepth = 'depth_obs'
         self.videoCol = 'video'  # Column for video data quality (0,1)
-        self.realtime = 'realtime'
         self.trktype = 'TrkType'
         
         #
@@ -131,10 +129,8 @@ class TransectDatasource( object ):
             [ self.time24hr,'TEXT','#','#','11' ],
             [ self.bsdepth,'DOUBLE','9','2','#' ],
             [ self.shpDepCol,'DOUBLE','9','2','#' ],
-            [ self.other,'SHORT','#','#','#' ],
             [ self.videoCol,'SHORT','#','#','#' ],
-            [ self.realtime,'SHORT','#','#','#' ],
-            [ self.trktype,'SHORT','#','#','#' ],
+            [ self.trktype,'TEXT','#','#','10' ],
             [],
             []
             
@@ -194,13 +190,13 @@ class TransectDatasource( object ):
             #  add veg_code fields 
             #  to this TransectDatasource
             #  we insert them before
-            #  'other' column here
+            #  'video' column here
             #  because we do not have
             #  any other option yet
             #   
             #
             for field in self.transect_csv.veg_code_fields:               
-                insert_indx = self.insert_fields.index( ['other','SHORT','#','#','#'] )
+                insert_indx = self.insert_fields.index( [ self.videoCol ,'SHORT','#','#','#' ] )
                 self.insert_fields.insert( insert_indx, field )
                 
                 
@@ -262,9 +258,9 @@ class TransectDatasource( object ):
         scurse = arcpy.SearchCursor( path, where_clause=search_string )
         row = scurse.next()
         if not row:
-            errtext = "You tried to do a Fkey lookup '%s' on table [ %s ] and it does not exist" % ( self.full_output_path, search_string )
+            errtext = "You tried FKEY lookup '%s' on table [ %s ] and it query returned nothing" % ( search_string, self.full_output_path )
             raise Exception( errtext )         
-        fkey = row.getValue( "OBJECTID" )
+        fkey = row.getValue( "trktype_code" )
         del row, scurse
         #
         #  add it to the cache
@@ -310,9 +306,9 @@ class TransectDatasource( object ):
                     #  is now a SHORT integer Fkey
                     #  so we override it here
                     #
-                    if source_field == 'TrkType':
+                    # if source_field == 'TrkType':
                         # override value with lookup
-                        value = self._get_fkey( self.trktype_path, "trktype_code", value )
+                        # value = self._get_fkey( self.trktype_path, "trktype_code", value )
                         
                     # Convert null values to a nonsense number for dbf file
                     if not value:

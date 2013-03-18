@@ -24,13 +24,13 @@ def msg(msg):
 
 class CsvFileNotFound( Exception ):
     def __init__(self, message):
-        super( self.__class__.__name__ , self ).__init__( message )
+        super( self.__class__ , self ).__init__( message )
     def __str__(self):
         return repr(self.code)
 
 class MissingFields( Exception ):
     def __init__(self, message):
-        super( self.__class__.__name__ , self ).__init__( message )
+        super( self.__class__ , self ).__init__( message )
     def __str__(self):
         return repr(self.code)
     
@@ -74,8 +74,6 @@ class TransectCSV( object ):
         self.site_code = 'Site' # Column for site code e.g. core001
         self.depth_obs = 'BSdepth' # Column for depth
         self.depth_interp = 'BSdepth_interp' # Column for interp
-        self.other =  'other' # Column other
-        self.realtime = 'realtime'  # Column realtime video
         
         
         #
@@ -105,9 +103,7 @@ class TransectCSV( object ):
             self.sourceTimeCol ,
             self.depth_obs ,
             self.depth_interp ,
-            self.other ,
             self.videoCol ,
-            self.realtime ,
             self.trkTypeCol ,
             self.sourceLatCol ,
             self.sourceLonCol , 

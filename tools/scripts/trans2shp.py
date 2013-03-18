@@ -66,11 +66,7 @@ if __name__ == "__main__":
     
 
     try:
-        #
-        #
         #  make overwriteOutput ENV = True
-        #
-        #
         arcpy.env.overwriteOutput = True
         # Create the custom error class
         # and associate it with the arcpy
@@ -93,19 +89,15 @@ if __name__ == "__main__":
         
         veg_code_lookup, trktype_code_lookup = get(6),get(7)
 
+        #-------------------------------------------------------------------
         #--- CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
         #-------------------------------------------------------------------
+        
         # Get list of subdirectories within input data parent directory
         inSubDirList = utils.make_subDirList(inParentDir)           
         # Get site list from input text file
         siteList = utils.make_siteList(siteFile)
         
-        
-        #
-        #
-        #  MAKE LISTS OF PROCESS DATA
-        #
-        #
         # Create list of output transect files and output feature classes
         # and check for existence of input file
         msg('List of sites to process:\n%s' % '\n'.join(siteList))
@@ -126,12 +118,6 @@ if __name__ == "__main__":
             if not os.path.isfile(fullTransFile):
                 missingTransFile.append(fullTransFile)
         
-        
-        #
-        #
-        #   QC FILE EXISTENCE
-        #
-        #
         # Compare site list to directory lists (in and out) to check for folder and file existence
         missingInDir = [d for d in siteList if d not in inSubDirList]
         missingOutDir = [] #[d for d in siteList if d not in outSubDirList]  
@@ -144,6 +130,8 @@ if __name__ == "__main__":
             if missingTransFile:
                 errtext += "TRANSECT file(s) not found:\n%s" % '\n'.join(missingTransFile)
             e.call(errtext)
+            
+        #-----------------------------------------------------------------------
         #--- END CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
         #-----------------------------------------------------------------------
         
