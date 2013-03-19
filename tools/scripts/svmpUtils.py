@@ -35,64 +35,68 @@ wgs84Code = '4326' # ArcGIS spatial reference code for Geographic, WGS-84
 # The first row contains the column names, 
 # but the order of columns within the file may vary
 
+transFileSuffix = "TD.csv"  # suffix for input transect ASCII file
+
+site_code = 'Site'
 sourceLatCol = 'latitude'  # source ASCII data column name for latitude
 sourceLonCol = 'lon' # source ASCII data column name for longitude 
 sourceDateCol = 'date' # source ASCII data column name for data
 sourceTimeCol = 'time' # source ASCII data  column for time
-transFileSuffix = "TD.csv"  # suffix for input transect ASCII file
-
 sourceTrkCol = 'trk' # column to identify a track/transect
 trkTypeCol = 'TrkType'  # Column listing type of track
-zmCol = 'Zm'  # Column indicating presence of Zostera marina (0,1)
-videoCol = 'video'  # Column for video data quality (0,1)
-
+sourceVideoCol = 'video'  # Column for video data quality (0,1)    
+sourceSite_code = 'Site' # Column for site code e.g. core001
+depth_obs = 'BSdepth' # Column for depth
+depth_interp = 'BSdepth_interp' # Column for interp
 
 
 # List of Source Column Names needed for data conversion/processing
-sourceCols = [sourceTrkCol,
+sourceCols = [
+            sourceSite_code,
+            sourceTrkCol,
             sourceDateCol,
             sourceTimeCol,
-            'BSdepth',
-            'BSdepth_interp',
-            #zmCol,
-            #'Zj',
-            'other',
-            videoCol,
-            'realtime',
+            depth_obs,
+            depth_interp,
+            sourceVideoCol,
             trkTypeCol,
             sourceLatCol,
-            sourceLonCol]
+            sourceLonCol
+        ]
 
 
-#------------- VARIABLES Related to Output Point Shapefiles -------------#
+#------------- VARIABLES Related to Output Point FeatureClasses -------------#
 
 nullDep = -9999 #-999.99 # Nonsense value to for null depth values in shapefile
 ptShpSubDir = 'video_transect_data'  # output subdirectory for point shapefile
 ptShpSuffix = '_transect_data.shp'  # suffix for output point shapefile
 
-shpDepCol = 'BSdepIntrp' # Interpolated Biosonics Depth column
-shpDateCol = 'date_samp'  # Column with date of survey
-
+site_code = 'site_code'
 trkCol = 'tran_num' # to match final database column name, changed from trk to tran_num
-
+shpDepCol = 'depth_interp' # Interpolated Biosonics Depth column
+shpDateCol = 'date_samp'  # Column with date of survey       
+time24hr = 'Time24hr'
+bsdepth = 'depth_obs'
+videoCol = 'video'  # Column for video data quality (0,1)
+trktype = 'TrkType' # Column listing type of track
             
 # Column names and definitions for output transect point shapefile
 # Number of items in list must match the input ascii file columns
 # and be in the same order for dictionary to set relationship
-trkPtAddtions = []
-trkPtShpCols = [[trkCol,'LONG','#','#','#'],
-         [shpDateCol,'DATE','#','#','#'],
-         ['Time24hr','TEXT','#','#','11'],
-         ['BSdepth','DOUBLE','9','2','#'],
-         [shpDepCol,'DOUBLE','9','2','#'],
-         #[zmCol,'SHORT','#','#','#'],
-         #['Zj','SHORT','#','#','#'],
-         ['other','SHORT','#','#','#'],
-         [videoCol,'SHORT','#','#','#'],
-         ['realtime','SHORT','#','#','#'],
-         ['TrkType','SHORT','#','#','#'],
-         [],
-         []]
+trkPtShpCols = [ 
+                
+            [ site_code, 'TEXT', '#', '#', '10'],
+            [ trkCol,'LONG','#','#','#' ],
+            [ shpDateCol,'DATE','#','#','#' ],
+            [ time24hr,'TEXT','#','#','11' ],
+            [ bsdepth,'DOUBLE','9','2','#' ],
+            [ shpDepCol,'DOUBLE','9','2','#' ],
+            [ videoCol,'SHORT','#','#','#' ],
+            [ trktype,'TEXT','#','#','10' ],
+            [],
+            []
+            
+        ]
 
 # Combine input output column lists into a dictionary
 ptColDict = dict(zip(sourceCols,trkPtShpCols))

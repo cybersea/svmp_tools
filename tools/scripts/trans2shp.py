@@ -20,7 +20,6 @@
 # (5) outCoordSys -- Coordinate system for output shapefiles
 # (6) surveyYear -- Survey year for data to be processed
 # (7) veg_code -- Table path that points to veg_code
-# (8) trktype_code -- Table path that points to trktype_code
 
 # Directory Structure Notes --
 # This script is expecting a directory structure that is
@@ -86,8 +85,8 @@ if __name__ == "__main__":
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
         # Survey Year for data to be processed
         inCoordSys,outCoordSys, surveyYear = arcpy.GetParameter(1),arcpy.GetParameter(4),get(5)
-        
-        veg_code_lookup, trktype_code_lookup = get(6),get(7)
+        #  veg_code_lookup is full path to veg_code table
+        veg_code_lookup = get(6)
 
         #-------------------------------------------------------------------
         #--- CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
@@ -143,7 +142,7 @@ if __name__ == "__main__":
             try:
                 transect_csv = TransectCSV( fullTransFile, inCoordSys, veg_code_lookup )
                 msg("Converting Site: '%s'" % site)              
-                datasource = TransectDatasource( outDir, outFC, trktype_code_lookup, outCoordSys, transect_csv )         
+                datasource = TransectDatasource( outDir, outFC, outCoordSys, transect_csv )         
                 datasource.write_output()
             except Exception, err:
                 #

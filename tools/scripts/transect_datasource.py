@@ -4,6 +4,7 @@
 #
 #
 import os, sys, re
+import copy
 import arcpy
 import csv
 
@@ -30,30 +31,30 @@ class CreateFeatureClassError( Exception ):
     def __init__(self, message):
         super( self.__class__ , self ).__init__( message )
     def __str__(self):
-        return repr(self.code)
+        return repr(self)
     
 class SetValueError( Exception ):
     def __init__(self, message):
         super( self.__class__, self ).__init__( message )
     def __str__(self):
-        return repr(self.code)
+        return repr(self)
     
 class InsertRowError( Exception ):
     def __init__(self, message):
         super( self.__class__ , self ).__init__( message )
     def __str__(self):
-        return repr(self.code)
+        return repr(self)
 
 class DecimalDegreesConversionError( Exception ):
     def __init__(self, message):
         super( self.__class__ , self ).__init__( message )
     def __str__(self):
-        return repr(self.code)
+        return repr(self)
 
 
 class TransectDatasource( object ):
     
-    def __init__( self, target_path, target_name, trktype_path, output_spatial_ref, transect_csv_object ):
+    def __init__( self, target_path, target_name, output_spatial_ref, transect_csv_object ):
         '''
         a geo datasource class that hasA TransetCSV object
         it can read the TransectCSV 
@@ -61,14 +62,12 @@ class TransectDatasource( object ):
         ----------------------------------------------------
         < target_path >  : datasource dirname() for target_name ( featureclass )
         < target_name >  : name of the featureclass
-        < trktype_path > : full path to the trktype_code table
         < transect_csv_object > : an instance of TransectCSV
         < output_spatial_ref > : the arcpy.SpatialReference of the target datasource
         '''
         
         self.target_path = target_path  # dirname( target_name )
         self.target_name = target_name  # featureclass name 
-        self.trktype_path = trktype_path 
         self.output_spatial_ref = output_spatial_ref
         self.full_output_path = os.path.join( self.target_path, self.target_name )
         self.transect_csv = transect_csv_object
@@ -87,16 +86,14 @@ class TransectDatasource( object ):
         #  FEATURECLASS FIELDS
         #
         #
-        self.site_code = 'site_code'
-        self.trkCol = 'tran_num' # to match final database column name, changed from trk to tran_num
-        self.ptShpSubDir = 'video_transect_data'  # output subdirectory for point shapefile
-        self.ptShpSuffix = '_transect_data.shp'  # suffix for output point shapefile     
-        self.shpDepCol = 'depth_interp' # Interpolated Biosonics Depth column
-        self.shpDateCol = 'date_samp'  # Column with date of survey       
-        self.time24hr = 'Time24hr'
-        self.bsdepth = 'depth_obs'
-        self.videoCol = 'video'  # Column for video data quality (0,1)
-        self.trktype = 'TrkType'
+        self.site_code = utils.site_code
+        self.trkCol = utils.trkCol # to match final database column name, changed from trk to tran_num  
+        self.shpDepCol = utils.shpDepCol # Interpolated Biosonics Depth column
+        self.shpDateCol = utils.shpDateCol # Column with date of survey       
+        self.time24hr = utils.time24hr
+        self.bsdepth = utils.bsdepth
+        self.videoCol = utils.videoCol # Column for video data quality (0,1)
+        self.trktype = utils.trktype
         
         #
         #
@@ -121,20 +118,7 @@ class TransectDatasource( object ):
         there is an assumption that this order
         mirrors the TransectCSV._expected_columns() order
         '''
-        return [ 
-                
-            [ self.site_code, 'TEXT', '#', '#', '10'],
-            [ self.trkCol,'LONG','#','#','#' ],
-            [ self.shpDateCol,'DATE','#','#','#' ],
-            [ self.time24hr,'TEXT','#','#','11' ],
-            [ self.bsdepth,'DOUBLE','9','2','#' ],
-            [ self.shpDepCol,'DOUBLE','9','2','#' ],
-            [ self.videoCol,'SHORT','#','#','#' ],
-            [ self.trktype,'TEXT','#','#','10' ],
-            [],
-            []
-            
-        ]
+        return utils.trkPtShpCols
         
     def _create_field_mapping( self ):
         #
@@ -146,7 +130,7 @@ class TransectDatasource( object ):
         #  which means we'll need to update the hash
         #  with the dynamic veg_code fieldnames after
         #
-        #  
+        #
         self.field_mapping = dict( zip( [ i[0] for i in self._get_fields() if i ],
                                         self.transect_csv._expected_columns() ) )
         
@@ -157,8 +141,8 @@ class TransectDatasource( object ):
         #  from TransectCSV
         #
         #
-        self.field_mapping.update( dict( [ (fld[0],fld[0]) for fld in self.transect_csv.veg_code_fields ] ) )        
-         
+        self.field_mapping.update( dict( [ (fld[0],fld[0]) for fld in self.transect_csv.veg_code_fields ] ) )
+        
     def _add_veg_code_fields( self ):
         '''
         TransectCSV will determine what columns
@@ -183,7 +167,7 @@ class TransectDatasource( object ):
             #  before creating the output datasource
             #
             #
-            self.insert_fields = self._get_fields()
+            self.insert_fields = copy.deepcopy( self._get_fields() )
                       
             #
             #

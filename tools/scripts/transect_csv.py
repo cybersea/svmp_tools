@@ -12,6 +12,7 @@ import csv
 #  app import
 #
 #
+import svmpUtils as utils
 def msg(msg):
     arcpy.AddMessage(msg)
 
@@ -26,13 +27,13 @@ class CsvFileNotFound( Exception ):
     def __init__(self, message):
         super( self.__class__ , self ).__init__( message )
     def __str__(self):
-        return repr(self.code)
+        return repr(self)
 
 class MissingFields( Exception ):
     def __init__(self, message):
         super( self.__class__ , self ).__init__( message )
     def __str__(self):
-        return repr(self.code)
+        return repr(self)
     
     
     
@@ -62,18 +63,16 @@ class TransectCSV( object ):
         #  EXPECTED SOURCE CSV COLUMNS
         #
         #  
-        self.site_code = 'Site'
-        self.sourceLatCol = 'latitude'  # source ASCII data column name for latitude
-        self.sourceLonCol = 'lon' # source ASCII data column name for longitude 
-        self.sourceDateCol = 'date' # source ASCII data column name for data
-        self.sourceTimeCol = 'time' # source ASCII data  column for time
-        self.transFileSuffix = "TD.csv"  # suffix for input transect ASCII file  
-        self.sourceTrkCol = 'trk' # column to identify a track/transect
-        self.trkTypeCol = 'TrkType'  # Column listing type of track
-        self.videoCol = 'video'  # Column for video data quality (0,1)    
-        self.site_code = 'Site' # Column for site code e.g. core001
-        self.depth_obs = 'BSdepth' # Column for depth
-        self.depth_interp = 'BSdepth_interp' # Column for interp
+        self.sourceLatCol = utils.sourceLatCol  # source ASCII data column name for latitude
+        self.sourceLonCol = utils.sourceLonCol # source ASCII data column name for longitude 
+        self.sourceDateCol = utils.sourceDateCol # source ASCII data column name for data
+        self.sourceTimeCol = utils.sourceTimeCol # source ASCII data  column for time
+        self.sourceTrkCol = utils.sourceTrkCol # column to identify a track/transect
+        self.trkTypeCol = utils.trkTypeCol  # Column listing type of track
+        self.sourceVideoCol = utils.videoCol  # Column for video data quality (0,1)    
+        self.sourceSite_code = utils.site_code # Column for site code e.g. core001
+        self.depth_obs = utils.depth_obs # Column for depth
+        self.depth_interp = utils.depth_interp # Column for interp
         
         
         #
@@ -95,21 +94,9 @@ class TransectCSV( object ):
         mirrors the TransectDatasource._get_fields() order
         '''
         
-        return [
-            
-            self.site_code ,
-            self.sourceTrkCol ,
-            self.sourceDateCol ,
-            self.sourceTimeCol ,
-            self.depth_obs ,
-            self.depth_interp ,
-            self.videoCol ,
-            self.trkTypeCol ,
-            self.sourceLatCol ,
-            self.sourceLonCol , 
-                
-        ]
-        
+        return utils.sourceCols
+    
+    
     def _verify_field_names( self ):
         '''
         open the csv and make sure expected field names exist
