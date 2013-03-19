@@ -62,8 +62,8 @@ class TransectDatasource( object ):
         ----------------------------------------------------
         < target_path >  : datasource dirname() for target_name ( featureclass )
         < target_name >  : name of the featureclass
-        < transect_csv_object > : an instance of TransectCSV
         < output_spatial_ref > : the arcpy.SpatialReference of the target datasource
+        < transect_csv_object > : an instance of TransectCSV
         '''
         
         self.target_path = target_path  # dirname( target_name )
@@ -147,7 +147,10 @@ class TransectDatasource( object ):
         '''
         TransectCSV will determine what columns
         in the CSV are veg_code columns dynamically.
-        Here we use this informaiton 
+        Here we use this informaiton to create our
+        self.insert_fields that will be used
+        to create output featurelcass columns
+        in _add_featureclass_fields
         '''
         
         #
@@ -197,6 +200,10 @@ class TransectDatasource( object ):
             raise CreateFeatureClassError( errtext )
         
     def _add_featureclass_fields( self ):
+        """
+        take everything stored in self.insert_fields
+        and create columns in the output featureclass
+        """
         fnames = []
         for col in self.insert_fields:
             if col:

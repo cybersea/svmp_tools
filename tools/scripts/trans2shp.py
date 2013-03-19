@@ -13,22 +13,27 @@
 # for Washington DNR's Submerged Vegetation Monitoring Program
 
 # Parameters:
-# (1) inParentDir -- Parent directory for input files
-# (2) inCoordSys -- Coordinate system for input data
-# (3) siteFile -- Full path of text file containing list of sites
-# (4) outParentDir -- Parent directory for output files
-# (5) outCoordSys -- Coordinate system for output shapefiles
+# (0) inParentDir -- Parent directory for input files
+# (1) inCoordSys -- Coordinate system for input data
+# (2) siteFile -- Full path of text file containing list of sites
+# (3) outParentGDB -- Parent directory for output files
+# (4) outCoordSys -- Coordinate system for output shapefiles
+# (5) veg_code -- Table path that points to veg_code for lookups
 # (6) surveyYear -- Survey year for data to be processed
-# (7) veg_code -- Table path that points to veg_code
 
 # Directory Structure Notes --
 # This script is expecting a directory structure that is
-#   specific to Washington DNR's SVMP it looks as follows:
+# specific to Washington DNR's SVMP for input.
+# The only room for naming changes is 
+# the geodatabase name for the output.
+# Here are some examples:
+#
 # Sample input data directory (one folder for each site within a year):
 # J:\AQR\DATA\NEARSHOR\VegMon\2006_Field_Season\Site Folders\core006
-# Sample output data geodatabase:
+#
+# Sample output data geodatabase ( file or personal geodatabase ):
 # (all transect featureclasses stored in one geodatabase, named by year)
-# \\Snarf\bss3\work\svmp\fieldwork\site_folders\core006\video_transect_data
+# \\Snarf\bss3\work\svmp\fieldwork\site_folders\<geodatabase_name>.gdb\_2011_core001_transect_data
 
 #--------------------------------------------------------------------------
 
@@ -47,13 +52,15 @@ import svmpUtils as utils
 # Import the custom Exception class for handling errors
 from svmp_exceptions import SvmpToolsError
 
-# our worker classes
+# Import worker classes
 from transect_datasource import TransectDatasource
 from transect_csv import TransectCSV
 
+# General message accumulator
 def msg(msg):
     arcpy.AddMessage(msg)
 
+# Wrapper for GetParametersAsText
 def get(idx):
     return arcpy.GetParameterAsText(idx)
           
@@ -78,15 +85,15 @@ if __name__ == "__main__":
         # Input Data Parent Directory 
         # Transect ASCII files are located in subdirectories below here
         #  Default: Environment - current workspace
-        # outParentDir: Output Data Parent Directory.  Default: Environment - scratch workspace
+        # outParentGDB: Output Data Parent Directory.  Default: Environment - scratch workspace
         # siteFile: Full Path of text file containing list of sites to process
-        inParentDir,siteFile,outParentDir = get(0),get(2),get(3) 
+        inParentDir,siteFile,outParentGDB = get(0),get(2),get(3) 
         # Input Data Coordinate System.  Default:  GCS_WGS_1984
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
+        inCoordSys,outCoordSys = arcpy.GetParameter(1),arcpy.GetParameter(4)
+        # veg_code_lookup is full path to veg_code table
         # Survey Year for data to be processed
-        inCoordSys,outCoordSys, surveyYear = arcpy.GetParameter(1),arcpy.GetParameter(4),get(5)
-        #  veg_code_lookup is full path to veg_code table
-        veg_code_lookup = get(6)
+        veg_code_lookup,surveyYear = get(5),get(6)
 
         #-------------------------------------------------------------------
         #--- CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
@@ -107,25 +114,25 @@ if __name__ == "__main__":
             # Construct input dirs
             inDir = os.path.join(inParentDir, site)
             # Construct output dirs
-            outDir = os.path.join( outParentDir ) #os.path.join(outParentDir,site) #utils.ptShpSubDir)
+            outGDB = os.path.join( outParentGDB )
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
             fullTransFile = os.path.join(inDir, '%s%s' % (site,'TD.csv'))
-            outFC = '_%s_%s%s' % (surveyYear,site, os.path.splitext( utils.ptShpSuffix )[0] )
+            outFC = '_%s_%s%s' % (surveyYear,site, utils.ptShpSuffix )
             # Make list of transect files, output directories, output feature class, and site name
-            sites_to_process.append([fullTransFile,outDir,outFC,site])
+            sites_to_process.append([fullTransFile,outGDB,outFC,site])
             # Validate presence of input transect file
             if not os.path.isfile(fullTransFile):
                 missingTransFile.append(fullTransFile)
         
         # Compare site list to directory lists (in and out) to check for folder and file existence
         missingInDir = [d for d in siteList if d not in inSubDirList]
-        missingOutDir = [] #[d for d in siteList if d not in outSubDirList]  
+        missingOutDB = not( arcpy.Exists( outGDB ) )  # Exsits returns True for exists False otherwise, we return True missing False otherwise
         errtext = ""
-        if missingInDir or missingOutDir or missingTransFile:
+        if missingInDir or missingOutDB or missingTransFile:
             if missingInDir:
                 errtext += "INPUT directory(ies) not found:\n%s\n%s\n" % ('/'.join((inParentDir,"*")),'\n'.join(missingInDir)) 
-            if missingOutDir:
-                errtext += "OUTPUT directory(ies) not found:\n%s\n%s\n" % ('/'.join((outParentDir,"*",utils.ptShpSubDir)),'\n'.join(missingOutDir))
+            if missingOutDB:
+                errtext += "OUTPUT geodatabase not found:\n%s\n" % ( '/'.join( outGDB ) )
             if missingTransFile:
                 errtext += "TRANSECT file(s) not found:\n%s" % '\n'.join(missingTransFile)
             e.call(errtext)
@@ -137,12 +144,12 @@ if __name__ == "__main__":
         msg("Processing %s site(s) requested in '%s'" % (len(siteList),siteFile))
         # Now loop through and process sites
         for path in sites_to_process:
-            fullTransFile,outDir,outFC,site  = path[0],path[1],path[2],path[3]
+            fullTransFile,outGDB,outFC,site  = path[0],path[1],path[2],path[3]
             msg("-------- SITE ID: %s --------" % site)
             try:
                 transect_csv = TransectCSV( fullTransFile, inCoordSys, veg_code_lookup )
                 msg("Converting Site: '%s'" % site)              
-                datasource = TransectDatasource( outDir, outFC, outCoordSys, transect_csv )         
+                datasource = TransectDatasource( outGDB, outFC, outCoordSys, transect_csv )         
                 datasource.write_output()
             except Exception, err:
                 #
