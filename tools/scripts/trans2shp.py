@@ -16,7 +16,7 @@
 # (0) inParentDir -- Parent directory for input files
 # (1) inCoordSys -- Coordinate system for input data
 # (2) siteFile -- Full path of text file containing list of sites
-# (3) outParentGDB -- Parent directory for output files
+# (3) outGDB -- Parent directory for output files
 # (4) outCoordSys -- Coordinate system for output shapefiles
 # (5) veg_code -- Table path that points to veg_code for lookups
 # (6) surveyYear -- Survey year for data to be processed
@@ -33,7 +33,7 @@
 #
 # Sample output data geodatabase ( file or personal geodatabase ):
 # (all transect featureclasses stored in one geodatabase, named by year)
-# \\Snarf\bss3\work\svmp\fieldwork\site_folders\<geodatabase_name>.gdb\_2011_core001_transect_data
+# \\Snarf\bss3\work\svmp\fieldwork\site_folders\<geodatabase_name>.gdb\core001_2011_transect_pt
 
 #--------------------------------------------------------------------------
 
@@ -85,9 +85,9 @@ if __name__ == "__main__":
         # Input Data Parent Directory 
         # Transect ASCII files are located in subdirectories below here
         #  Default: Environment - current workspace
-        # outParentGDB: Output Data Parent Directory.  Default: Environment - scratch workspace
+        # outGDB: Output Geodatabase.  Default: Environment - scratch workspace
         # siteFile: Full Path of text file containing list of sites to process
-        inParentDir,siteFile,outParentGDB = get(0),get(2),get(3) 
+        inParentDir,siteFile,outGDB = get(0),get(2),get(3) 
         # Input Data Coordinate System.  Default:  GCS_WGS_1984
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
         inCoordSys,outCoordSys = arcpy.GetParameter(1),arcpy.GetParameter(4)
@@ -107,17 +107,15 @@ if __name__ == "__main__":
         # Create list of output transect files and output feature classes
         # and check for existence of input file
         msg('List of sites to process:\n%s' % '\n'.join(siteList))
-        msg('Checking for input directories, transect files, and output directories')
+        msg('Checking for input directories and transect files')
         sites_to_process = []
         missingTransFile = []
         for site in siteList:      
             # Construct input dirs
             inDir = os.path.join(inParentDir, site)
-            # Construct output dirs
-            outGDB = os.path.join( outParentGDB )
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
-            fullTransFile = os.path.join(inDir, '%s%s' % (site,'TD.csv'))
-            outFC = '_%s_%s%s' % (surveyYear,site, utils.ptShpSuffix )
+            fullTransFile = os.path.join(inDir, '%s%s' % (site,utils.transFileSuffix))
+            outFC = '%s_%s%s' % (site, surveyYear,utils.ptShpSuffix )
             # Make list of transect files, output directories, output feature class, and site name
             sites_to_process.append([fullTransFile,outGDB,outFC,site])
             # Validate presence of input transect file
@@ -126,13 +124,10 @@ if __name__ == "__main__":
         
         # Compare site list to directory lists (in and out) to check for folder and file existence
         missingInDir = [d for d in siteList if d not in inSubDirList]
-        missingOutDB = not( arcpy.Exists( outGDB ) )  # Exsits returns True for exists False otherwise, we return True missing False otherwise
         errtext = ""
-        if missingInDir or missingOutDB or missingTransFile:
+        if missingInDir or missingTransFile:
             if missingInDir:
                 errtext += "INPUT directory(ies) not found:\n%s\n%s\n" % ('/'.join((inParentDir,"*")),'\n'.join(missingInDir)) 
-            if missingOutDB:
-                errtext += "OUTPUT geodatabase not found:\n%s\n" % ( '/'.join( outGDB ) )
             if missingTransFile:
                 errtext += "TRANSECT file(s) not found:\n%s" % '\n'.join(missingTransFile)
             e.call(errtext)

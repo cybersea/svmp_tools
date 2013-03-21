@@ -68,7 +68,7 @@ sourceCols = [
 #------------- VARIABLES Related to Output Point FeatureClasses -------------#
 
 nullDep = -9999 #-999.99 # Nonsense value to for null depth values in shapefile
-ptShpSuffix = '_transect_data'  # suffix for output point shapefile
+ptShpSuffix = '_transect_pt'  # suffix for output point shapefile
 
 site_code = 'site_code'
 trkCol = 'tran_num' # to match final database column name, changed from trk to tran_num
