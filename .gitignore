@@ -7,3 +7,4 @@ svmp_db/
 svmp_sitesdb.mdb
 tools/SVMP*ab.tbx
 tools/SVMP*DEV.tbx
+.DS_Store
