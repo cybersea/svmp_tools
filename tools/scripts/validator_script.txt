@@ -1,0 +1,62 @@
+import arcpy
+import os
+class ToolValidator(object):
+  """Class for validating a tool's parameter values and controlling
+  the behavior of the tool's dialog."""
+
+  def __init__(self):
+    """Setup arcpy and the list of tool parameters."""
+    self.params = arcpy.GetParameterInfo()
+    self.initialize_or_update = False
+    self.sites_status_exists = False
+    self.gdb = None
+
+  def initializeParameters(self):
+    """Refine the properties of a tool's parameters.  This method is
+    called when the tool is opened."""
+    return
+
+  def updateParameters(self):
+    """Modify the values and properties of parameters before internal
+    validation is performed.  This method is called whenever a parameter
+    has been changed."""
+
+    #
+    #  reset
+    #
+    self.params[6].value = ""
+    self.params[6].filter.list = []
+
+    #
+    #  samp_occasion ( #6 ) depends on #5
+    #
+    veg_code_table = str( self.params[5].value )
+    self.gdb = os.path.dirname( veg_code_table  )
+
+    #
+    #  qc that the table sites_status exists
+    #
+    self.sites_status_exists = arcpy.Exists( os.path.join( self.gdb, 'sites_status' ) )
+    if self.sites_status_exists:
+        values = set()
+        rows = arcpy.SearchCursor( os.path.join( self.gdb, 'sites_status' ) )
+        for row in rows:
+            values.add( row.getValue( 'samp_occasion' ) )
+        sort = sorted( values ) # this converts to list too
+        sort.reverse()
+        self.params[6].value = sort[0]
+        self.params[6].filter.list = sort
+        self.params[6].enabled = True
+    else:
+        #
+        #  update flag
+        #
+        self.params[6].value = "The Veg Code geodatabase does not have a table called 'sites_status' -- Please fix this before running!"
+        self.params[6].enabled = False
+        pass
+    return
+
+  def updateMessages(self):
+    """Modify the messages created by internal validation for each tool
+    parameter.  This method is called after internal validation."""
+    return
