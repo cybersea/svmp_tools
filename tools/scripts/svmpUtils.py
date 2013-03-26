@@ -70,6 +70,18 @@ sourceCols = [
 nullDep = -9999 #-999.99 # Nonsense value to for null depth values in shapefile
 ptShpSuffix = '_transect_pt'  # suffix for output point shapefile
 
+#
+#
+#  Q: in the past scripts this column was hardcoded in utils
+#  when doing trans2shp rewrite we now do a dynamic
+#  lookup and this column was removed
+#  however, sitesstatsdb uses this column
+#  so we are putting it back here temporarily
+#  until we decide how to handle this
+# 
+#
+zmCol = 'Zm'
+
 site_code = 'site_code'
 trkCol = 'tran_num' # to match final database column name, changed from trk to tran_num
 shpDepCol = 'depth_interp' # Interpolated Biosonics Depth column
@@ -379,14 +391,13 @@ def make_siteDirDict(siteList, subDirList):
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
 # Get a list of field names from a feature class, excluding FID and Shape
-def get_fieldnames(FC,gp):
+def get_fieldnames(FC,arcpy):
     fieldnames = []
-    fieldlist = gp.ListFields(FC,'*','all')
-    field = fieldlist.Next()
-    while field:
-        if field.Name != 'FID' and field.Name != 'Shape':
-            fieldnames.append(field.Name)
-        field = fieldlist.Next()
+    fieldlist = arcpy.ListFields(FC,'*','all')
+    for field in fieldlist:
+        if field.name != 'FID' and field.name != 'Shape' and field.name != 'OBJECTID':
+            field_name = field.name
+            fieldnames.append(field_name)
     return fieldnames 
 
 #--------------------------------------------------------------------------
@@ -520,22 +531,22 @@ def ci95(SE):
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
 # Extract the data from the table using a select statement and column list
-def get_Data(dataTable,selStatement,colList,gp):
+def get_Data(dataTable,selStatement,colList,arcpy):
     print dataTable,selStatement,colList
     # initalize list to hold extracted data
     allData = []
     # Search Cursor with the selection statement
-    rows = gp.SearchCursor(dataTable,selStatement)
-    row = rows.Next()
+    rows = arcpy.SearchCursor(dataTable,selStatement)
+    row = rows.next()
     while row:
         # initialize list to hold data for the row
         rowData = []
         # Get the data from each desired column and put in list
         for col in colList:
-            rowData.append(row.GetValue(col))
+            rowData.append(row.getValue(col))
         # Append row data list, to list of lists for all data
         allData.append(rowData)
-        row = rows.Next()
+        row = rows.next()
     del rows
     print allData
     return allData

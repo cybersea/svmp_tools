@@ -16,7 +16,7 @@
 # a full set of data
 
 # Parameters:
-# (1) ptParentDir -- Parent directory for site point shapefiles
+# (1) ptTransectGDB -- Parent directory for site point shapefiles
 # (2) pyParentDir -- Parent directory for sample polygon shapefiles
 # (3) ctlParentDir -- Parent directory for site control files
 # (3) siteFile -- Full path of text file containing list of all sites for year
@@ -40,7 +40,7 @@
 #--------------------------------------------------------------------------
 import sys
 import os 
-import arcgisscripting 
+import arcpy
 # Import functions used for SVMP scripts
 import svmpUtils as utils
 # Import the custom Exception class for handling errors
@@ -51,19 +51,19 @@ STEP = 1
 def msg(msg):
     global STEP
     #msg = 'Step %s: %s...' % (STEP,msg)
-    gp.AddMessage(msg)
+    arcpy.AddMessage(msg)
     STEP += 1
 
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
-# Create a dictionary with the site name and shapefile
+# Create a dictionary with the site name and featureclass
 # Assumes shapefiles are prefixed with site_year_
 #  and the appropriate suffix is passed in as a parameter
-def make_ptShpDict(siteList,parentDir,subDir,yr,shpSuffix):
+def make_ptShpDict(siteList,transectGDB,yr,shpSuffix):
     siteShpDict = {}
     for site in siteList:
-        shp = yr + "_" + site + shpSuffix
-        shpPath = os.path.join(parentDir,site,subDir,shp)
+        shp = site + "_" + yr + shpSuffix
+        shpPath = os.path.join(transectGDB,shp)
         siteShpDict[site] = shpPath
     return siteShpDict
 #--------------------------------------------------------------------------
@@ -83,24 +83,24 @@ def make_pyShpDict(siteList,parentDir,subDir,yr,shpSuffix):
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
 # Make a dictionary with the Site IDS and the lat/long coordinates
-def make_siteXYDict(siteList,siteFC,srCode,gp):
+def make_siteXYDict(siteList,siteFC,srCode,arcpy):
     siteCol = utils.sitePtIDCol #"NAME"  # Field that contains the site ID
     sitesXY = {}
     # temp directory to create dummy shapefile for Spatial Reference
     tmpDir = os.path.dirname(siteFC)
-    spatRef = utils.make_spatRef(gp,tmpDir,srCode)
+    spatRef = utils.make_spatRef(arcpy,tmpDir,srCode)
     # Create Search Cursor on site point feature class
     # With Geographic spatial reference for lat/long coords
-    allpts = gp.SearchCursor(siteFC,'',spatRef)
-    pt = allpts.Next()
+    allpts = arcpy.SearchCursor(siteFC,'',spatRef)
+    pt = allpts.next()
     while pt:
         # site id
-        siteID = pt.GetValue(siteCol)
+        siteID = pt.getValue(siteCol)
         # Coordinates
-        X = pt.shape.GetPart().x
-        Y = pt.shape.GetPart().y
+        X = pt.shape.getPart().X
+        Y = pt.shape.getPart().Y
         sitesXY[siteID] = [X,Y]
-        pt = allpts.Next()
+        pt = allpts.next()
 
     del allpts   # remove the cursor    
     return sitesXY   
@@ -109,66 +109,77 @@ def make_siteXYDict(siteList,siteFC,srCode,gp):
 #--------------------------------------------------------------------------
 # Convert transect point shapefiles to line files
 # Assign point attributes to the line ahead of it
-def trans_pt2line(ptFC,lnFC,gp,transID):
+def trans_pt2line(ptFC,lnFC,arcpy,transID):
     try: 
-        spatRef = gp.Describe(ptFC).SpatialReference
-        gp.CreateFeatureClass(os.path.dirname(lnFC),os.path.basename(lnFC),"Polyline",ptFC,"#","#",spatRef)
+        spatRef = arcpy.Describe(ptFC).SpatialReference
+        arcpy.CreateFeatureclass_management(os.path.dirname(lnFC),os.path.basename(lnFC),"Polyline",ptFC,"#","#",spatRef)
         # Open a cursor for the ouput line shapefile
-        cur = gp.InsertCursor(lnFC)
+        cur = arcpy.InsertCursor(lnFC)
         # Get a list of fields in the input point feature class
-        pt_fields = utils.get_fieldnames(ptFC,gp)
+        pt_fields = utils.get_fieldnames(ptFC,arcpy)
         # Cursor for iterating through Point Feature class
-        allpts = gp.SearchCursor(ptFC)
+        allpts = arcpy.SearchCursor(ptFC)
         pt = allpts.next()
         lastTrk = 0   # Initialize the transect counter
-        lineArray = gp.CreateObject("Array")  # Make an array object for the line
-        fromPt = gp.CreateObject("Point") # Make an array object for the "From" point
-        toPt = gp.CreateObject("Point") # Make an array object for the "To" point
+        lineArray = arcpy.CreateObject("Array")  # Make an array object for the line
+        fromPt = arcpy.CreateObject("Point") # Make an array object for the "From" point
+        toPt = arcpy.CreateObject("Point") # Make an array object for the "To" point
 
         while pt:
             # Get the current Transect ID
-            trkID = pt.GetValue(transID)
+            trkID = pt.getValue(transID)
             # IF it's a new transect, store the coordinates
             # and the attributes of this point
             if trkID != lastTrk:
                 # Get the coordinates and Transect ID
-                fromPt.x = pt.shape.GetPart().x
-                fromPt.y = pt.shape.GetPart().y
-                fromPt.Id = trkID
+                fromPt.X = pt.shape.getPart().X
+                fromPt.Y = pt.shape.getPart().Y
+                fromPt.ID = trkID
                 lastTrk = trkID
                 # List to contain the attributes
                 pt_attributes = {}
                 # Get the attributes
                 for fld in pt_fields:
-                    pt_attributes[fld] = pt.GetValue(fld)
+                    pt_attributes[fld] = pt.getValue(fld)
             # Otherwise, this point is the end point
             # of a two point line, starting with the previous point
             else:
                 # Get the coordinates of the end point of line
-                toPt.x = pt.shape.GetPart().x
-                toPt.y = pt.shape.GetPart().y
-                toPt.Id = trkID
+                toPt.X = pt.shape.getPart().X
+                toPt.Y = pt.shape.getPart().Y
+                toPt.ID = trkID
                 # Create a new row in the feature class
-                lineArray.RemoveAll()
+                lineArray.removeAll()
                 # Add the To/From points
-                lineArray.Add(fromPt)
-                lineArray.Add(toPt)
+                lineArray.add(fromPt)
+                lineArray.add(toPt)
                 # Create a new feature
-                feat = cur.NewRow()
+                feat = cur.newRow()
                 # Set the new feature's shape to the Line Array
-                feat.Shape = lineArray
+                feat.shape = lineArray
                 for fld in pt_fields:
-                    feat.SetValue(fld, pt_attributes[fld])
+                    #msg( "feat.setValue( '%s', %s)" % ( fld, str(pt_attributes[fld]) ))
+                    #
+                    #  Q: field lengths > 10 chars are good
+                    #  in GDB but bad in SHP
+                    #  so depth_interp gets truncated later
+                    #  when we are creating lineArray
+                    #  so we handle it here until something better
+                    #
+                    pt_fld = fld
+                    if fld == 'depth_interp':
+                        fld = 'depth_inte'
+                    feat.setValue(fld, pt_attributes[pt_fld])
                 # Insert this Row into the feature class
-                cur.InsertRow(feat)
+                cur.insertRow(feat)
 
                 # Then, save these coordinates for
                 # the start coordinates of the next line
-                fromPt.x = toPt.x
-                fromPt.y = toPt.y
+                fromPt.X = toPt.X
+                fromPt.Y = toPt.Y
                 # And the associated attributes go with the next line
                 for fld in pt_fields:
-                    pt_attributes[fld] = pt.GetValue(fld)
+                    pt_attributes[fld] = pt.getValue(fld)
 
                 # Get the next point from the transect point file   
             pt = allpts.next()
@@ -229,7 +240,7 @@ def get_Flags(site,ctlFile):
 # Calculate transect-based statistics
 # Creates a list of lists containing attributes for each transect
 # Attributes are ordered according to output data fields in transect table
-def calc_transStats(site,lnFC,trkFlagDict,gp):
+def calc_transStats(site,lnFC,trkFlagDict,arcpy):
     # Empty List to Store data for all transects at this site
     allTrkStats = []
 
@@ -260,8 +271,8 @@ def calc_transStats(site,lnFC,trkFlagDict,gp):
             # Need to form a select statment like "tran_num" = 1
             selStatement = '''"%s" = %s''' % (utils.trkCol,trk)
             # Create a search cursor for rows that meet the query's criteria
-            rows = gp.SearchCursor(lnFC,selStatement)
-            row = rows.Next()
+            rows = arcpy.SearchCursor(lnFC,selStatement)
+            row = rows.next()
             # If records returned from query, do processing for that transect
             if row:   
                 # Initialize Max and Min depth 
@@ -271,16 +282,21 @@ def calc_transStats(site,lnFC,trkFlagDict,gp):
                 zm_mindep_ft = trk_mindep_ft = init_min = -10000
                 # Get date of first transect:
                 if startDate == 0:
-                    startDate = row.GetValue(utils.shpDateCol)
+                    startDate = row.getValue(utils.shpDateCol)
                 ## Loop through all rows for the transect
                 while row:
                     feat = row.shape  # Get the Shape field
-                    trkDate = row.GetValue(utils.shpDateCol)
-                    dep = row.GetValue(utils.shpDepCol)
-                    vidQual = row.GetValue(utils.videoCol)
-                    zmPresence = row.GetValue(utils.zmCol)
+                    trkDate = row.getValue(utils.shpDateCol)
+                    
+                    #
+                    #  Q: shape depth_interp column issue
+                    #  temporary fix
+                    #
+                    dep = row.getValue(utils.shpDepCol[:10])
+                    vidQual = row.getValue(utils.videoCol)
+                    zmPresence = row.getValue(utils.zmCol)
                     # length of the current feature 
-                    segLen = feat.Length   
+                    segLen = feat.length   
                     # Only use rows that have good video quality (good = 1, bad = 0)
                     if vidQual:
                         # This segment length gets added to total length of sample
@@ -305,7 +321,7 @@ def calc_transStats(site,lnFC,trkFlagDict,gp):
                                     zm_maxdep_ft = dep
                                 if dep > zm_mindep_ft:
                                     zm_mindep_ft = dep
-                    row = rows.Next()
+                    row = rows.next()
         
                 # If the max/min depths are the same as the initialized value, 
                 #    then, change it to the null value
@@ -358,22 +374,22 @@ def calc_transStats(site,lnFC,trkFlagDict,gp):
 # Insert the calculated statistics data into the specified database table
 # Assumes that the data are stored as a list of lists
 # and they are in the same order as the output data table column list
-def insert_stats(table,data,cols,gp):
-    cur = gp.InsertCursor(table)
+def insert_stats(table,data,cols,arcpy):
+    cur = arcpy.InsertCursor(table)
     for line in data:
         # Create a New Row in the table
-        row = cur.NewRow()
+        row = cur.newRow()
         # Set all the attributes
         # Assumes data list is in the same order as column list
         for (col,val) in zip(cols,line):
-            row.SetValue(col,val)
-        cur.InsertRow(row)
+            row.setValue(col,val)
+        cur.insertRow(row)
 
     del cur  # Remove the cursor
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 # Produce default stats values for sites without Zostera marina
-def calc_siteStats_noZm(sites,ptShpDict,siteXYDict,gp):
+def calc_siteStats_noZm(sites,ptShpDict,siteXYDict,arcpy):
     # Empty List to Store output data for all sites
     allSiteStats = []
     
@@ -397,10 +413,10 @@ def calc_siteStats_noZm(sites,ptShpDict,siteXYDict,gp):
         #------------------- DATE -----------------------------------
         try:
             ptFC = ptShpDict.get(site)
-            rows = gp.SearchCursor(ptFC,"","",utils.shpDateCol)
-            row = rows.Next()
+            rows = arcpy.SearchCursor(ptFC,"","",utils.shpDateCol)
+            row = rows.next()
             # Get date of first transect:
-            startDate = row.GetValue(utils.shpDateCol)
+            startDate = row.getValue(utils.shpDateCol)
             del rows
             del row
         except:
@@ -427,7 +443,7 @@ def calc_siteStats_noZm(sites,ptShpDict,siteXYDict,gp):
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 # Calculate statistics for sites with Zostera marina, based on transect table
-def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,gp):
+def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,arcpy):
     # Empty List to Store output data for all sites
     allSiteStats = []
 
@@ -456,10 +472,10 @@ def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,gp):
         selStatement = '[' + siteCol + ']' + ' = ' + '\'' + str(site) + '\''
         # Create Search Cursor for Input Transect Data Table
         print inTable, selStatement
-        rows = gp.SearchCursor(inTable,selStatement)
+        rows = arcpy.SearchCursor(inTable,selStatement)
         # are any rows returned?
         #print "are Any rows returned?"
-        row = rows.Next()
+        row = rows.next()
         #print "Apparently"
         # Get date from first row 
         #if not row:
@@ -468,27 +484,27 @@ def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,gp):
             e.call("site %s:  No data in table %s" % (site, inTable))
         #print row
         #print dateCol
-        startDate = row.GetValue(dateCol)
+        startDate = row.getValue(dateCol)
         #msg("Start Date: %s" % startDate)
         n = 0  # Counter for number of transects used in calculations
         # Gather necessary data from data table
         while row:
             # Add values to Sample Length and Eelgrass Length Lists
-            samplenList.append(row.GetValue(samplenCol))
-            zmlenList.append(row.GetValue(zmlenCol))
+            samplenList.append(row.getValue(samplenCol))
+            zmlenList.append(row.getValue(zmlenCol))
             # If transect is Flagged for use in max eelgrass depth, add
             #  its maximum eelgrass depth value to the list
-            maxDepZM = row.GetValue(zmmaxdepCol)
-            minDepZM = row.GetValue(zmmindepCol)
-            if row.GetValue(maxdepflagCol):
+            maxDepZM = row.getValue(zmmaxdepCol)
+            minDepZM = row.getValue(zmmindepCol)
+            if row.getValue(maxdepflagCol):
                 if maxDepZM <> utils.nullDep:
                     maxdepList.append(maxDepZM)
-            if row.GetValue(mindepflagCol):
+            if row.getValue(mindepflagCol):
                 if minDepZM <> utils.nullDep:
                     mindepList.append(minDepZM)
             n = n + 1 # increment the transect counter 
             #msg("Number of rows processed for sample length and eelgrass length: %s" % (n))           
-            row = rows.Next()
+            row = rows.next()
         del row
         del rows  # Get rid of cursor
         
@@ -508,16 +524,16 @@ def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,gp):
 #        print "Mean transect length: " + str(mean_translen)
         # Estimated Variance of eelgrass fraction
         estvar_zmfraction = utils.ratioEstVar(samplenList,zmlenList,estmean_zmfraction,n,mean_translen)
-#        print "Estimated variance of eelgrass fraction: " + str(estvar_zmfraction)
+        msg( "Estimated variance of eelgrass fraction: " + str(estvar_zmfraction) )
         # Sampling area
-        sample_area = sampPolyArea(pyFC,gp)
-#        print "Sample area: " + str(sample_area)
+        sample_area = sampPolyArea(pyFC,arcpy)
+        msg( "Sample area: " + str(sample_area) )
         # Estimated basal area coverage (i.e. area of Zostera marina)
         est_basalcov = estmean_zmfraction * sample_area
-#        print "Area of Z. Marina: " + str(est_basalcov)
+        msg( "Area of Z. Marina: " + str(est_basalcov) )
         # Estimated variance of basal area coverage 
         estvar_basalcov = estvar_zmfraction * (sample_area ** 2)
-#        print "Variance of basal area coverage: " + str(estvar_basalcov)
+        msg( "Variance of basal area coverage: " + str(estvar_basalcov) )
         # standard error of eelgrass area
         se_basalcov = estvar_basalcov ** 0.5
 #        print "Standard error of eelgrass area: " + str(se_basalcov)
@@ -624,16 +640,16 @@ def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,gp):
 # Optional parameter to pass in a multiplier to convert 
 # from units in the source shapefile to some other area units
 # Default is to return units from shapefile
-def sampPolyArea(pyFC,gp, areaConvConstant=1):
+def sampPolyArea(pyFC,arcpy, areaConvConstant=1):
     # Create a search cursor on the sample polygon
     # Get Area, and convert from survey feet to square meters
-    polys = gp.SearchCursor(pyFC)
-    poly = polys.Next()
+    polys = arcpy.SearchCursor(pyFC)
+    poly = polys.next()
     pyArea = 0 # initialize polygon area total
     # accumulate area from each polygon in the shapefile
     while poly:
-        pyArea = pyArea + (poly.shape.Area * areaConvConstant )
-        poly = polys.Next()
+        pyArea = pyArea + (poly.shape.area * areaConvConstant )
+        poly = polys.next()
     del polys, poly
     return pyArea  
 
@@ -657,14 +673,12 @@ if __name__ == "__main__":
 
     try:
 
-        # Create the geoprocessing object
-        gp = arcgisscripting.create()
-        # Overwrite existing output data 
-        gp.OverWriteOutput = 1
+        #  make overwriteOutput ENV = True
+        arcpy.env.overwriteOutput = True
 
         # Create the custom error class
-        # and associate it with the gp
-        e = SvmpToolsError(gp)
+        # and associate it with the arcpy
+        e = SvmpToolsError( arcpy )
         # Set some basic defaults for error handling
         e.debug = True
         e.full_tb = True
@@ -674,24 +688,20 @@ if __name__ == "__main__":
         #Get parameters
         # Input Transect Point Shapefile Parent Directory 
         # Transect ASCII files are located in subdirectories below here 
-        ptParentDir = gp.GetParameterAsText(0)  
+        ptTransectGDB = arcpy.GetParameterAsText(0)  
         # Input Sample Polygon Shapefile Parent Directory 
-        pyParentDir = gp.GetParameterAsText(1)
+        pyParentDir = arcpy.GetParameterAsText(1)
         # Control File Parent Directory
-        ctlParentDir = gp.GetParameterAsText(2)
+        ctlParentDir = arcpy.GetParameterAsText(2)
         # Full Path of text file containing list of sites to process
-        siteFile = gp.GetParameterAsText(3) 
+        siteFile = arcpy.GetParameterAsText(3) 
         # Full Path to database to store site and transect statistic tables
-        siteDB = gp.GetParameterAsText(4)   
+        siteDB = arcpy.GetParameterAsText(4)   
         # Full path to shapefile containing point locations of sites
-        allSitesFC = gp.GetParameterAsText(5)
+        allSitesFC = arcpy.GetParameterAsText(5)
         # Survey Year for data to be processed
-        surveyYear = gp.GetParameterAsText(6)
-
-        #msg(ptParentDir + '\n' + pyParentDir)
-
-        # Subdirectory for Transect Point Shapefiles
-        ptSubDir = utils.ptShpSubDir 
+        surveyYear = arcpy.GetParameterAsText(6)
+        
         # Suffix for Transect Point Shapefiles
         ptSuffix = utils.ptShpSuffix  
         # Subdirectory for Sample Polygon shapefiles 
@@ -703,8 +713,6 @@ if __name__ == "__main__":
         # File suffix for control file
         ctlSuffix = utils.ctlSuffix 
 
-        # gp.AddMessage("Control file suffix:" + ctlSuffix)
-
         # Template table for sites statistics
         template_sites = utils.templateSites
         template_sites_fullpath = os.path.join(siteDB,template_sites)
@@ -712,7 +720,7 @@ if __name__ == "__main__":
         # Template table for transect statistics
         template_transects = utils.templateTransects  
         template_transects_fullpath = os.path.join(siteDB,template_transects)
-       # msg("Template Transects" + template_transects_fullpath)
+        # msg("Template Transects" + template_transects_fullpath)
 
         # Output Statistics Table Names -- use year as prefix 
         site_table = template_sites + surveyYear # surveyYear + template_sites
@@ -736,13 +744,12 @@ if __name__ == "__main__":
 
         # Make a dictionary containing the sites and the 
         #  full path to transect point shapefiles
-        ptDirDict = make_ptShpDict(siteList,ptParentDir,ptSubDir,surveyYear,ptSuffix)
-        
+        ptDirDict = make_ptShpDict(siteList,ptTransectGDB,surveyYear,ptSuffix)
         # check for missing transect point shapefiles
         missingPtShapes = []
         for site in siteList:
-            ptShp = ptDirDict.get(site)
-            if not os.path.exists(ptShp):
+            ptFeatureClass = ptDirDict.get(site)
+            if not arcpy.Exists( ptFeatureClass ):
                 # add to list of sites with missing transect shapefiles
                 missingPtShapes.append(site)
         # Check for missing control files
@@ -770,10 +777,10 @@ if __name__ == "__main__":
             try:
                 # Create Search Cursor for Input Transect Data Table
                 # Sort on Zmarina column, descending -- contains only zero or one for presence/absence
-                rows = gp.SearchCursor(shapefile,"","",utils.zmCol, "%s D" % utils.zmCol)
+                rows = arcpy.SearchCursor(shapefile,"","",utils.zmCol, "%s D" % utils.zmCol)
                 # First row contains max value
-                row = rows.Next()
-                ZmFlag = row.GetValue(utils.zmCol)
+                row = rows.next()
+                ZmFlag = row.getValue(utils.zmCol)
             except:
                 e.call("Sorry, there was a problem accessing or querying feature class %s" % site)
 
@@ -811,7 +818,7 @@ if __name__ == "__main__":
 
         # Create a dictionary containing all sites and lat/long coordinates
         # why all? - want to only open shapefile once to save time
-        siteXYDict = make_siteXYDict(siteList,allSitesFC,utils.wgs84Code,gp)
+        siteXYDict = make_siteXYDict(siteList,allSitesFC,utils.wgs84Code, arcpy)
 
         # Get a list of input subdirectories for control files
         # need to avoid .svn folder
@@ -821,8 +828,8 @@ if __name__ == "__main__":
         # Create Tables for Annual Site and Transect Data Summary Statistics
         # NOte:  This will overwrite existing tables and replace them
         try:
-            gp.CreateTable(siteDB,trans_table,template_transects_fullpath)
-            gp.CreateTable(siteDB,site_table,template_sites_fullpath)
+            arcpy.CreateTable_management(siteDB,trans_table,template_transects_fullpath)
+            arcpy.CreateTable_management(siteDB,site_table,template_sites_fullpath)
         except:
             errtext = ("Problem Creating Annual Stats Table(s): '%s' and/or '%s' in \n%s\n" % (trans_table,site_table,siteDB))
             errtext += ("Make sure that the database is not open in ArcGIS or MS Access")
@@ -835,18 +842,27 @@ if __name__ == "__main__":
             ptFC = ptDirDict[site]  # get point feature class name
             msg("The point feature class is: '%s'" % ptFC)
             
-            # Should not need this because check for all point shapefiles done up front
-            #if not gp.Exists(ptFC):
-                #e.call("'%s' does not exist" % ptFC)
-
             # name for Line Feature Class (put in same directory as input points)
             shape_name = "%s_%s_transect_line.shp" % (surveyYear,site)
-            lnFC = os.path.join(os.path.dirname(ptFC),shape_name)
+            
+            #
+            #
+            #  Q: temporary fix until we decided
+            #  where to put temp files in future, maybe here anyway
+            #
+            #
+            lnFC = os.path.join(os.path.dirname( os.path.dirname(ptFC) ),shape_name)
             # full path for sample Polygon Feature Class
             pyFC = pyDirDict[site]
             # Output clipped Line Feature Class name
             shape_name = "%s_%s_transect_line_clip.shp" % (surveyYear,site)
-            cliplnFC = os.path.join(os.path.dirname(ptFC),shape_name)
+            #
+            #
+            #  Q: temporary fix until we decided
+            #  where to put temp files in future, maybe here anyway
+            #
+            #
+            cliplnFC = os.path.join( os.path.dirname( os.path.dirname(ptFC) ),shape_name )
             # Control File Name
             ctlFile = "".join((site,ctlSuffix))
             ctlFileFull = os.path.join(ctlParentDir,site,ctlFile)
@@ -857,14 +873,14 @@ if __name__ == "__main__":
             # Create the Line Feature Class with same attributes as input points
             try:
                 msg("Creating temporary line file")
-                trans_pt2line(ptFC,lnFC,gp,transID)                    
+                trans_pt2line(ptFC,lnFC,arcpy,transID)                    
             except:
                 e.call("Problem creating a line from:" + ptFC)
 
             # Clip the Line Feature Class with the sample polygon
-            if gp.Exists(pyFC):  
+            if arcpy.Exists(pyFC):  
                 msg("Clipping the Line to the sample poly")             
-                gp.clip_analysis(lnFC,pyFC,cliplnFC)
+                arcpy.Clip_analysis(lnFC,pyFC,cliplnFC)
             else:
                 e.call("'%s' does not exist" % pyFC)
 
@@ -874,32 +890,31 @@ if __name__ == "__main__":
             # Calculate Transect Statistics 
             #Transect statistics (list of lists, in order by columns in output tables
             msg("Calculating transect statistics")
-            transStats = calc_transStats(site,cliplnFC,trkFlagDict,gp)
+            transStats = calc_transStats(site,cliplnFC,trkFlagDict,arcpy)
 
             # Insert Transect Statistics into annual Transects data table
             msg("Inserting transect statistics into data table")
-            insert_stats(trans_table_fullpath,transStats,transCols,gp)
+            insert_stats(trans_table_fullpath,transStats,transCols,arcpy)
 
             # Delete the temporary line files:
-            gp.Delete(lnFC)
-            gp.Delete(cliplnFC)
+            arcpy.Delete_management(lnFC)
+            arcpy.Delete_management(cliplnFC)
 
         # Calculate Site Statistics for Z. marina sites
-#        siteStats = calc_siteStats(siteList,trans_table_fullpath,pyDirDict,siteXYDict,gp)
         if siteList_Zm:
             msg("Calculating site statistics for sites with Z. marina")
-            siteStats_Zm = calc_siteStats(siteList_Zm,trans_table_fullpath,pyDirDict,siteXYDict,gp)
+            siteStats_Zm = calc_siteStats(siteList_Zm,trans_table_fullpath,pyDirDict,siteXYDict,arcpy)
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
-            insert_stats(site_table_fullpath,siteStats_Zm,siteCols,gp)
+            insert_stats(site_table_fullpath,siteStats_Zm,siteCols,arcpy)
         if siteList_NoZm:
             msg("Calculating site statistics for sites without Z. marina")
-            siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict,siteXYDict,gp)
+            siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict,siteXYDict,arcpy)
             msg("Inserting site statistics into data table")
-            insert_stats(site_table_fullpath,siteStats_NoZm,siteCols,gp)
+            insert_stats(site_table_fullpath,siteStats_NoZm,siteCols,arcpy)
         
     except SystemExit:
         pass
     except:
         e.call()
-        del gp
+        del arcpy
