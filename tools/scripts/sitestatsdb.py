@@ -83,12 +83,12 @@ def make_pyShpDict(siteList,parentDir,subDir,yr,shpSuffix):
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
 # Make a dictionary with the Site IDS and the lat/long coordinates
-def make_siteXYDict(siteList,siteFC,srCode,arcpy):
+def make_siteXYDict(siteList,siteFC,srCode):
     siteCol = utils.sitePtIDCol #"NAME"  # Field that contains the site ID
     sitesXY = {}
     # temp directory to create dummy shapefile for Spatial Reference
     tmpDir = os.path.dirname(siteFC)
-    spatRef = utils.make_spatRef(arcpy,tmpDir,srCode)
+    spatRef = arcpy.SpatialReference( int( srCode ) )
     # Create Search Cursor on site point feature class
     # With Geographic spatial reference for lat/long coords
     allpts = arcpy.SearchCursor(siteFC,'',spatRef)
@@ -109,7 +109,7 @@ def make_siteXYDict(siteList,siteFC,srCode,arcpy):
 #--------------------------------------------------------------------------
 # Convert transect point shapefiles to line files
 # Assign point attributes to the line ahead of it
-def trans_pt2line(ptFC,lnFC,arcpy,transID):
+def trans_pt2line(ptFC,lnFC,transID):
     try: 
         spatRef = arcpy.Describe(ptFC).SpatialReference
         arcpy.CreateFeatureclass_management(os.path.dirname(lnFC),os.path.basename(lnFC),"Polyline",ptFC,"#","#",spatRef)
@@ -240,7 +240,7 @@ def get_Flags(site,ctlFile):
 # Calculate transect-based statistics
 # Creates a list of lists containing attributes for each transect
 # Attributes are ordered according to output data fields in transect table
-def calc_transStats(site,lnFC,trkFlagDict,arcpy):
+def calc_transStats(site,lnFC,trkFlagDict):
     # Empty List to Store data for all transects at this site
     allTrkStats = []
 
@@ -374,7 +374,7 @@ def calc_transStats(site,lnFC,trkFlagDict,arcpy):
 # Insert the calculated statistics data into the specified database table
 # Assumes that the data are stored as a list of lists
 # and they are in the same order as the output data table column list
-def insert_stats(table,data,cols,arcpy):
+def insert_stats(table,data,cols):
     cur = arcpy.InsertCursor(table)
     for line in data:
         # Create a New Row in the table
@@ -389,7 +389,7 @@ def insert_stats(table,data,cols,arcpy):
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 # Produce default stats values for sites without Zostera marina
-def calc_siteStats_noZm(sites,ptShpDict,siteXYDict,arcpy):
+def calc_siteStats_noZm(sites,ptShpDict,siteXYDict):
     # Empty List to Store output data for all sites
     allSiteStats = []
     
@@ -443,7 +443,7 @@ def calc_siteStats_noZm(sites,ptShpDict,siteXYDict,arcpy):
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 # Calculate statistics for sites with Zostera marina, based on transect table
-def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,arcpy):
+def calc_siteStats(sites,inTable,pyDirDict,siteXYDict):
     # Empty List to Store output data for all sites
     allSiteStats = []
 
@@ -526,7 +526,7 @@ def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,arcpy):
         estvar_zmfraction = utils.ratioEstVar(samplenList,zmlenList,estmean_zmfraction,n,mean_translen)
         msg( "Estimated variance of eelgrass fraction: " + str(estvar_zmfraction) )
         # Sampling area
-        sample_area = sampPolyArea(pyFC,arcpy)
+        sample_area = sampPolyArea(pyFC)
         msg( "Sample area: " + str(sample_area) )
         # Estimated basal area coverage (i.e. area of Zostera marina)
         est_basalcov = estmean_zmfraction * sample_area
@@ -640,7 +640,7 @@ def calc_siteStats(sites,inTable,pyDirDict,siteXYDict,arcpy):
 # Optional parameter to pass in a multiplier to convert 
 # from units in the source shapefile to some other area units
 # Default is to return units from shapefile
-def sampPolyArea(pyFC,arcpy, areaConvConstant=1):
+def sampPolyArea(pyFC, areaConvConstant=1):
     # Create a search cursor on the sample polygon
     # Get Area, and convert from survey feet to square meters
     polys = arcpy.SearchCursor(pyFC)
@@ -818,7 +818,7 @@ if __name__ == "__main__":
 
         # Create a dictionary containing all sites and lat/long coordinates
         # why all? - want to only open shapefile once to save time
-        siteXYDict = make_siteXYDict(siteList,allSitesFC,utils.wgs84Code, arcpy)
+        siteXYDict = make_siteXYDict(siteList,allSitesFC,utils.wgs84Code)
 
         # Get a list of input subdirectories for control files
         # need to avoid .svn folder
@@ -873,7 +873,7 @@ if __name__ == "__main__":
             # Create the Line Feature Class with same attributes as input points
             try:
                 msg("Creating temporary line file")
-                trans_pt2line(ptFC,lnFC,arcpy,transID)                    
+                trans_pt2line(ptFC,lnFC,transID)                    
             except:
                 e.call("Problem creating a line from:" + ptFC)
 
@@ -890,11 +890,11 @@ if __name__ == "__main__":
             # Calculate Transect Statistics 
             #Transect statistics (list of lists, in order by columns in output tables
             msg("Calculating transect statistics")
-            transStats = calc_transStats(site,cliplnFC,trkFlagDict,arcpy)
+            transStats = calc_transStats(site,cliplnFC,trkFlagDict)
 
             # Insert Transect Statistics into annual Transects data table
             msg("Inserting transect statistics into data table")
-            insert_stats(trans_table_fullpath,transStats,transCols,arcpy)
+            insert_stats(trans_table_fullpath,transStats,transCols)
 
             # Delete the temporary line files:
             arcpy.Delete_management(lnFC)
@@ -903,15 +903,15 @@ if __name__ == "__main__":
         # Calculate Site Statistics for Z. marina sites
         if siteList_Zm:
             msg("Calculating site statistics for sites with Z. marina")
-            siteStats_Zm = calc_siteStats(siteList_Zm,trans_table_fullpath,pyDirDict,siteXYDict,arcpy)
+            siteStats_Zm = calc_siteStats(siteList_Zm,trans_table_fullpath,pyDirDict,siteXYDict)
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
-            insert_stats(site_table_fullpath,siteStats_Zm,siteCols,arcpy)
+            insert_stats(site_table_fullpath,siteStats_Zm,siteCols)
         if siteList_NoZm:
             msg("Calculating site statistics for sites without Z. marina")
-            siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict,siteXYDict,arcpy)
+            siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict,siteXYDict)
             msg("Inserting site statistics into data table")
-            insert_stats(site_table_fullpath,siteStats_NoZm,siteCols,arcpy)
+            insert_stats(site_table_fullpath,siteStats_NoZm,siteCols)
         
     except SystemExit:
         pass
