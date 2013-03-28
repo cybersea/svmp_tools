@@ -389,7 +389,7 @@ def insert_stats(table,data,cols):
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 # Produce default stats values for sites without Zostera marina
-def calc_siteStats_noZm(sites,ptShpDict,siteXYDict):
+def calc_siteStats_noZm(sites,ptShpDict):
     # Empty List to Store output data for all sites
     allSiteStats = []
     
