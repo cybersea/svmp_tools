@@ -151,6 +151,9 @@ class TransectDatasource( object ):
         self.insert_fields that will be used
         to create output featurelcass columns
         in _add_featureclass_fields
+        
+        TODO:
+        1) move veg_code template fields to utils and reference that
         '''
         
         #

@@ -154,6 +154,10 @@ class TransectCSV( object ):
         these will be used to compare which fields in the csv
         are veg_codes and which are not for dynamic featureclass
         column creation in TransectDatasource class
+        TODO: 
+        1) throw custom error when no veg codes exist in the csv
+        2) case-insensitive comparison for veg codes from input to output
+        3) output following veg columns found in the input
         '''
 
         #
