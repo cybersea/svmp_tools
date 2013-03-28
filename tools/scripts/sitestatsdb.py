@@ -423,17 +423,16 @@ def calc_siteStats_noZm(sites,ptShpDict,siteXYDict):
             e.call("Problem accessing or querying %s" % ptFC)
        
         #------------------- LOCATION -------------------------------
-        try:
-            lon,lat = siteCoords(site,siteXYDict)
-        except:
-            e.call("Error finding coordinates for site: " + site)
+#        try:
+#            lon,lat = siteCoords(site,siteXYDict)
+#        except:
+#            e.call("Error finding coordinates for site: " + site)
 
         #-------------------- OUTPUT --------------------------------
         siteStats = [site, startDate, n, estmean_zmfraction, estvar_zmfraction, 
                      sample_area,est_basalcov, estvar_basalcov,cv_basalcov,se_basalcov,ci95_basalcov,
                      n_mindep, mean_mindep, min_mindep, max_mindep, std_mindep, var_mindep, se_mindep, ci95_mindep,
-                     n_maxdep, mean_maxdep, min_maxdep, max_maxdep, std_maxdep, var_maxdep, se_maxdep, ci95_maxdep,
-                     lat,lon]
+                     n_maxdep, mean_maxdep, min_maxdep, max_maxdep, std_maxdep, var_maxdep, se_maxdep, ci95_maxdep]
 
         allSiteStats.append(siteStats)
         #print allSiteStats
@@ -443,7 +442,7 @@ def calc_siteStats_noZm(sites,ptShpDict,siteXYDict):
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 # Calculate statistics for sites with Zostera marina, based on transect table
-def calc_siteStats(sites,inTable,pyDirDict,siteXYDict):
+def calc_siteStats(sites,inTable,pyDirDict):
     # Empty List to Store output data for all sites
     allSiteStats = []
 
@@ -619,17 +618,16 @@ def calc_siteStats(sites,inTable,pyDirDict,siteXYDict):
 
 
         #------------------- LOCATION -------------------------------
-        try:
-            lon,lat = siteCoords(site,siteXYDict)
-        except:
-            e.call("Error finding coordinates for site: " + site)
+#        try:
+#            lon,lat = siteCoords(site,siteXYDict)
+#        except:
+#            e.call("Error finding coordinates for site: " + site)
 
         #-------------------- OUTPUT --------------------------------
         siteStats = [site, startDate, n, estmean_zmfraction, estvar_zmfraction, 
                      sample_area,est_basalcov, estvar_basalcov,cv_basalcov,se_basalcov,ci95_basalcov,
                      n_mindep, mean_mindep, min_mindep, max_mindep, std_mindep, var_mindep, se_mindep, ci95_mindep,
-                     n_maxdep, mean_maxdep, min_maxdep, max_maxdep, std_maxdep, var_maxdep, se_maxdep, ci95_maxdep,
-                     lat,lon]
+                     n_maxdep, mean_maxdep, min_maxdep, max_maxdep, std_maxdep, var_maxdep, se_maxdep, ci95_maxdep]
 
         allSiteStats.append(siteStats)
 
@@ -818,7 +816,7 @@ if __name__ == "__main__":
 
         # Create a dictionary containing all sites and lat/long coordinates
         # why all? - want to only open shapefile once to save time
-        siteXYDict = make_siteXYDict(siteList,allSitesFC,utils.wgs84Code)
+        # siteXYDict = make_siteXYDict(siteList,allSitesFC,utils.wgs84Code)
 
         # Get a list of input subdirectories for control files
         # need to avoid .svn folder
@@ -903,13 +901,13 @@ if __name__ == "__main__":
         # Calculate Site Statistics for Z. marina sites
         if siteList_Zm:
             msg("Calculating site statistics for sites with Z. marina")
-            siteStats_Zm = calc_siteStats(siteList_Zm,trans_table_fullpath,pyDirDict,siteXYDict)
+            siteStats_Zm = calc_siteStats(siteList_Zm,trans_table_fullpath,pyDirDict)
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_Zm,siteCols)
         if siteList_NoZm:
             msg("Calculating site statistics for sites without Z. marina")
-            siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict,siteXYDict)
+            siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict)
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_NoZm,siteCols)
         
