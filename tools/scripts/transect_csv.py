@@ -5,6 +5,7 @@
 #
 import os, sys, re
 import arcpy
+import copy
 import csv
 
 #
@@ -192,7 +193,10 @@ class TransectCSV( object ):
                 #  class attribute
                 #  self.veg_code_fields
                 #  this field for veg_code is a SHORT int
+                #  utils.veg_code_template is a template for field def
                 #
                 #     
-                self.veg_code_fields.append( [ source_veg_code, 'SHORT', '#', '#', '#' ] )
+                new_veg_code_field = copy.deepcopy( utils.veg_code_template )
+                new_veg_code_field[0] = source_veg_code
+                self.veg_code_fields.append( new_veg_code_field )
 

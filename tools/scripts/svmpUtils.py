@@ -90,6 +90,13 @@ time24hr = 'Time24hr'
 bsdepth = 'depth_obs'
 videoCol = 'video'  # Column for video data quality (0,1)
 trktype = 'TrkType' # Column listing type of track
+
+#
+#  when transect_csv does lookups to create
+#  dynamic veg_code fields it uses this field
+#  definition template
+#
+veg_code_template = [ None, 'SHORT', '#', '#', '#' ]
             
 # Column names and definitions for output transect point shapefile
 # Number of items in list must match the input ascii file columns
