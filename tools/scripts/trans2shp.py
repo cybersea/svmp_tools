@@ -94,6 +94,25 @@ if __name__ == "__main__":
         # veg_code_lookup is full path to veg_code table
         # Survey Year for data to be processed
         veg_code_lookup,surveyYear = get(5),get(6)
+        
+        #----------------------------------------------------------------------------------
+        #--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
+        #----------------------------------------------------------------------------------
+        gdb_lookup = os.path.dirname( veg_code_lookup )
+        sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
+        sites_status_exists = arcpy.Exists( sites_status_table )
+        if sites_status_exists:
+            rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            row = rows.next()
+            if not row:
+                errtext = "The table %s has no samp_occasion year = '%s'...please submit a new samp occasion year" % ( sites_status_table, surveyYear )
+                e.call( errtext ) 
+        else:
+            errtext = "The sites_status table does not exist at path %s" % sites_status_table
+            e.call( errtext ) 
+        #----------------------------------------------------------------------------------
+        #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
+        #----------------------------------------------------------------------------------
 
         #-------------------------------------------------------------------
         #--- CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
