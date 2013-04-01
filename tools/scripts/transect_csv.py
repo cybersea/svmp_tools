@@ -36,6 +36,12 @@ class MissingFields( Exception ):
     def __str__(self):
         return repr(self)
     
+class MissingVegCodeField( Exception ):
+    def __init__(self, message):
+        super( self.__class__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self)
+    
     
     
 
@@ -175,7 +181,7 @@ class TransectCSV( object ):
             scurse = arcpy.SearchCursor( self.veg_code_table_path  )
             row = scurse.next()
             while row:
-                self.valid_veg_codes.append( row.getValue( 'veg_code' ) )
+                self.valid_veg_codes.append( row.getValue( 'veg_code' ).lower() )
                 row = scurse.next()          
             del row, scurse
         
@@ -186,7 +192,7 @@ class TransectCSV( object ):
             #  see if it's a valid veg_code field name
             #
             #
-            for source_veg_code in [ i for i in list( self.actual_cols_minus_expected ) if i in self.valid_veg_codes ]:         
+            for source_veg_code in [ i for i in list( self.actual_cols_minus_expected ) if i.lower() in self.valid_veg_codes ]:         
                 #
                 #
                 #  add it to our cached
@@ -199,4 +205,23 @@ class TransectCSV( object ):
                 new_veg_code_field = copy.deepcopy( utils.veg_code_template )
                 new_veg_code_field[0] = source_veg_code
                 self.veg_code_fields.append( new_veg_code_field )
+                
+            msg( '------------------------------------')
+            msg( '---- Veg Codes Found in this CSV----')
+            msg( '------------------------------------')
+            for code in self.veg_code_fields:
+                msg( code )
+            #
+            #
+            #  if no veg_code_fields exist
+            #  for this CSV
+            #  after doing these lookups
+            #  then throw error
+            #  to alert user
+            #
+            #
+            if not self.veg_code_fields:
+                raise MissingVegCodeField( "No CSV columns from the file '%s' match any of the expected Veg Code columns %s" % 
+                                           ( self.file_path, str( self.valid_veg_codes) ) )
+            
 
