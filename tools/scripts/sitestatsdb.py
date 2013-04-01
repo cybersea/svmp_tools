@@ -86,6 +86,7 @@ def make_pyShpDict(siteList,parentDir,subDir,yr,shpSuffix):
 def trans_pt2line(ptFC,lnFC,transID):
     try: 
         spatRef = arcpy.Describe(ptFC).SpatialReference
+        msg( "Creating line featureclass = %s" % lnFC )
         arcpy.CreateFeatureclass_management(os.path.dirname(lnFC),os.path.basename(lnFC),"Polyline",ptFC,"#","#",spatRef)
         # Open a cursor for the ouput line shapefile
         cur = arcpy.InsertCursor(lnFC)
@@ -132,18 +133,7 @@ def trans_pt2line(ptFC,lnFC,transID):
                 # Set the new feature's shape to the Line Array
                 feat.shape = lineArray
                 for fld in pt_fields:
-                    #msg( "feat.setValue( '%s', %s)" % ( fld, str(pt_attributes[fld]) ))
-                    #
-                    #  Q: field lengths > 10 chars are good
-                    #  in GDB but bad in SHP
-                    #  so depth_interp gets truncated later
-                    #  when we are creating lineArray
-                    #  so we handle it here until something better
-                    #
-                    pt_fld = fld
-                    if fld == 'depth_interp':
-                        fld = 'depth_inte'
-                    feat.setValue(fld, pt_attributes[pt_fld])
+                    feat.setValue(fld, pt_attributes[fld])
                 # Insert this Row into the feature class
                 cur.insertRow(feat)
 
@@ -261,12 +251,7 @@ def calc_transStats(site,lnFC,trkFlagDict):
                 while row:
                     feat = row.shape  # Get the Shape field
                     trkDate = row.getValue(utils.shpDateCol)
-                    
-                    #
-                    #  Q: shape depth_interp column issue
-                    #  temporary fix
-                    #
-                    dep = row.getValue(utils.shpDepCol[:10])
+                    dep = row.getValue(utils.shpDepCol)
                     vidQual = row.getValue(utils.videoCol)
                     zmPresence = row.getValue(utils.zmCol)
                     # length of the current feature 
@@ -673,7 +658,7 @@ if __name__ == "__main__":
         surveyYear = arcpy.GetParameterAsText(5)
         
         # Suffix for Transect Point Shapefiles
-        ptSuffix = utils.ptShpSuffix  
+        ptSuffix = utils.ptFCSuffix  
         # Subdirectory for Sample Polygon shapefiles 
         pySubDir = utils.sampPyShpDir 
         # Suffix for Sample Polygon shapefiles
@@ -802,27 +787,16 @@ if __name__ == "__main__":
             ptFC = ptDirDict[site]  # get point feature class name
             msg("The point feature class is: '%s'" % ptFC)
             
+            # GDB location of temp files
+            gdb_temp_dir_path = os.path.dirname(ptFC)
             # name for Line Feature Class (put in same directory as input points)
-            shape_name = "%s_%s_transect_line.shp" % (surveyYear,site)
-            
-            #
-            #
-            #  Q: temporary fix until we decided
-            #  where to put temp files in future, maybe here anyway
-            #
-            #
-            lnFC = os.path.join(os.path.dirname( os.path.dirname(ptFC) ),shape_name)
+            shape_name = "_%s_%s_transect_line" % (surveyYear,site)
+            lnFC = os.path.join( gdb_temp_dir_path, shape_name)
             # full path for sample Polygon Feature Class
             pyFC = pyDirDict[site]
             # Output clipped Line Feature Class name
-            shape_name = "%s_%s_transect_line_clip.shp" % (surveyYear,site)
-            #
-            #
-            #  Q: temporary fix until we decided
-            #  where to put temp files in future, maybe here anyway
-            #
-            #
-            cliplnFC = os.path.join( os.path.dirname( os.path.dirname(ptFC) ),shape_name )
+            shape_name = "_%s_%s_transect_line_clip" % (surveyYear,site)
+            cliplnFC = os.path.join( gdb_temp_dir_path, shape_name )
             # Control File Name
             ctlFile = "".join((site,ctlSuffix))
             ctlFileFull = os.path.join(ctlParentDir,site,ctlFile)

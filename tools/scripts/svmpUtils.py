@@ -68,7 +68,7 @@ sourceCols = [
 #------------- VARIABLES Related to Output Point FeatureClasses -------------#
 
 nullDep = -9999 #-999.99 # Nonsense value to for null depth values in shapefile
-ptShpSuffix = '_transect_pt'  # suffix for output point shapefile
+ptFCSuffix = '_transect_pt'  # suffix for output point shapefile
 
 #
 #
