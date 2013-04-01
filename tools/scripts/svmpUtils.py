@@ -459,11 +459,6 @@ def dm2dd(coordDegMin):
 #  arcpy.SpatialReference --> arcobjects.SpatialReference object
 #
 #
-'''
-srs = arcpy.SpatialReference()
-srs.factoryCode = 4326 # proj of csv points
-srs.create()
-'''
 def make_spatRef( arcpy,aDir,coordSys):
     tempName = 'tmp4sr.shp'
     tempFC = arcpy.CreateFeatureclass_management(aDir,tempName,"POINT","#","#","#",coordSys)

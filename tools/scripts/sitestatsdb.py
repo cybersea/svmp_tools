@@ -21,8 +21,7 @@
 # (3) ctlParentDir -- Parent directory for site control files
 # (3) siteFile -- Full path of text file containing list of all sites for year
 # (4) siteDB -- Full path to database to store site and transect statistic tables
-# (5) allsitesFC -- Feature Class containing point locations for all sites
-# (6) surveyYear -- Survey year for data to be processed
+# (5) surveyYear -- Survey year for data to be processed
 
 # This script is expecting a directory structure that is
 #   specific to Washington DNR's SVMP it looks as follows:
@@ -80,31 +79,6 @@ def make_pyShpDict(siteList,parentDir,subDir,yr,shpSuffix):
         shpPath = os.path.join(parentDir,site,subDir,shp)
         siteShpDict[site] = shpPath
     return siteShpDict
-#--------------------------------------------------------------------------
-#--------------------------------------------------------------------------
-# Make a dictionary with the Site IDS and the lat/long coordinates
-def make_siteXYDict(siteList,siteFC,srCode):
-    siteCol = utils.sitePtIDCol #"NAME"  # Field that contains the site ID
-    sitesXY = {}
-    # temp directory to create dummy shapefile for Spatial Reference
-    tmpDir = os.path.dirname(siteFC)
-    spatRef = arcpy.SpatialReference( int( srCode ) )
-    # Create Search Cursor on site point feature class
-    # With Geographic spatial reference for lat/long coords
-    allpts = arcpy.SearchCursor(siteFC,'',spatRef)
-    pt = allpts.next()
-    while pt:
-        # site id
-        siteID = pt.getValue(siteCol)
-        # Coordinates
-        X = pt.shape.getPart().X
-        Y = pt.shape.getPart().Y
-        sitesXY[siteID] = [X,Y]
-        pt = allpts.next()
-
-    del allpts   # remove the cursor    
-    return sitesXY   
-
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
 # Convert transect point shapefiles to line files
@@ -695,10 +669,8 @@ if __name__ == "__main__":
         siteFile = arcpy.GetParameterAsText(3) 
         # Full Path to database to store site and transect statistic tables
         siteDB = arcpy.GetParameterAsText(4)   
-        # Full path to shapefile containing point locations of sites
-        allSitesFC = arcpy.GetParameterAsText(5)
         # Survey Year for data to be processed
-        surveyYear = arcpy.GetParameterAsText(6)
+        surveyYear = arcpy.GetParameterAsText(5)
         
         # Suffix for Transect Point Shapefiles
         ptSuffix = utils.ptShpSuffix  
@@ -812,16 +784,6 @@ if __name__ == "__main__":
             errtext = "The following sites have Z. marina, but are missing sample polygons for %s:\n" % surveyYear
             errtext += '\n'.join(missingSamplePolys)
             e.call(errtext)
-                
-
-        # Create a dictionary containing all sites and lat/long coordinates
-        # why all? - want to only open shapefile once to save time
-        # siteXYDict = make_siteXYDict(siteList,allSitesFC,utils.wgs84Code)
-
-        # Get a list of input subdirectories for control files
-        # need to avoid .svn folder
-        #ctlSubDirList = utils.make_subDirList(ctlParentDir)
-        #ctlDirDict = utils.make_siteDirDict(siteList,ctlSubDirList)
 
         # Create Tables for Annual Site and Transect Data Summary Statistics
         # NOte:  This will overwrite existing tables and replace them
