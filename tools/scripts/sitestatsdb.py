@@ -17,7 +17,7 @@
 
 # Parameters:
 # (1) ptTransectGDB -- Parent directory for site point shapefiles
-# (2) pyParentDir -- Parent directory for sample polygon shapefiles
+# (2) pyGDB -- Parent directory for sample polygon shapefiles
 # (3) ctlParentDir -- Parent directory for site control files
 # (3) siteFile -- Full path of text file containing list of all sites for year
 # (4) siteDB -- Full path to database to store site and transect statistic tables
@@ -52,6 +52,18 @@ def msg(msg):
     #msg = 'Step %s: %s...' % (STEP,msg)
     arcpy.AddMessage(msg)
     STEP += 1
+    
+#--------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
+#---------------------------   ERROR CLASSES   ----------------------------------------------
+#--------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------
+
+class SamplePolygonNotFound( Exception ):
+    def __init__(self, message):
+        super( self.__class__ , self ).__init__( message )
+    def __str__(self):
+        return repr(self)
 
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
@@ -67,18 +79,36 @@ def make_ptShpDict(siteList,transectGDB,yr,shpSuffix):
     return siteShpDict
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
-# Create a dictionary with the site name and shapefile
-# Assumes shapefiles are prefixed with year_site_
+# Create a dictionary with the site name and in-memory feature_layer
+# Assumes featureclass are prefixed with site_year_
 #  and the appropriate suffix is passed in as a parameter
-# Note: Sample Polys are prefixed with site then year
-#   opposite order from transect site files
-def make_pyShpDict(siteList,parentDir,subDir,yr,shpSuffix):
-    siteShpDict = {}
+#
+def make_pyFCDict(siteList,sample_poly_path,yr,fcSuffix):
+    siteFCDict = {}
+    missingPolygons = []
     for site in siteList:
-        shp = site + "_" + yr + shpSuffix
-        shpPath = os.path.join(parentDir,site,subDir,shp)
-        siteShpDict[site] = shpPath
-    return siteShpDict
+        site_stat_poly_id = site + "_" + yr
+        fl_output_name = site + "_" + yr + fcSuffix
+        sample_poly_fc = sample_poly_path
+        #
+        #
+        #  this creates a global temporary feature_layer
+        #  we can reference it later just with it's name
+        #  especially if we are using it in another arcpy
+        #  Geoprocessing tool that takes a FeatureLayer as input
+        #  such as a SearchCursor( < feature_layer> ) or SelectLayerByLocation
+        #  the call to MakeFeatureLayer *will not* bomb if the
+        #  the select statement is bad -- a null layer will exist
+        #
+        #
+        msg( "Creating temp feature layer '%s'" % fl_output_name )
+        arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause="[%s] = '%s'" % ('sitestat_id', site_stat_poly_id) )
+        if arcpy.Exists( fl_output_name ):
+            siteFCDict[site] = fl_output_name
+        else:
+            missingPolygons.append( site )
+
+    return ( siteFCDict, missingPolygons )
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
 # Convert transect point shapefiles to line files
@@ -647,7 +677,7 @@ if __name__ == "__main__":
         # Transect ASCII files are located in subdirectories below here 
         ptTransectGDB = arcpy.GetParameterAsText(0)  
         # Input Sample Polygon Shapefile Parent Directory 
-        pyParentDir = arcpy.GetParameterAsText(1)
+        pyGDB = arcpy.GetParameterAsText(1)
         # Control File Parent Directory
         ctlParentDir = arcpy.GetParameterAsText(2)
         # Full Path of text file containing list of sites to process
@@ -659,8 +689,6 @@ if __name__ == "__main__":
         
         # Suffix for Transect Point Shapefiles
         ptSuffix = utils.ptFCSuffix  
-        # Subdirectory for Sample Polygon shapefiles 
-        pySubDir = utils.sampPyShpDir 
         # Suffix for Sample Polygon shapefiles
         pySuffix = utils.sampPyShpSuffix  
         # Field name for Unique Transect Number within a site
@@ -752,18 +780,19 @@ if __name__ == "__main__":
         msg("Sites with Zostera marina:\n" +  '\n'.join(siteList_Zm))
         msg("Sites without Zostera marina:\n" + '\n'.join(siteList_NoZm))
 
-        # Make a dictionary containing the sites and the 
-        # full path to sample polygon shapefiles
-        pyDirDict = make_pyShpDict(siteList,pyParentDir,pySubDir,surveyYear,pySuffix)
-        
-        # Check for missing sample polygons (only needed for sites with Z. marina)
-        missingSamplePolys = []
-        for site in siteList_Zm:
-            sampPy = pyDirDict.get(site)
-            if not os.path.exists(sampPy):
-                # add to list of sites with missing sample polygons
-                #msg("Sites with Z. marina, but missing sample polys %s" % sampPy)
-                missingSamplePolys.append(site)
+        #
+        # Make a dictionary containing the sites and the temp feature_layer name
+        # this function will also hand back a list of problem polygons
+        # that are not found in the target feature class
+        #
+        # Q: since we are creating potentially a lot of temporary feature layers
+        # this workflow might slow things down. However, this is the only
+        # solution that i can come up with at this time. 
+        #
+        if not arcpy.Exists( pyGDB ):
+            errtext = "The sample polygons feature class does not exist '%s' " % pyGDB
+            e.call(errtext)
+        pyDirDict, missingSamplePolys = make_pyFCDict(siteList,pyGDB,surveyYear,pySuffix)
                 
         if missingSamplePolys:
             errtext = "The following sites have Z. marina, but are missing sample polygons for %s:\n" % surveyYear
@@ -846,6 +875,14 @@ if __name__ == "__main__":
             siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict)
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_NoZm,siteCols)
+            
+        #
+        #  just to be sure we are clearing all memory
+        #  used during program we manually delete all
+        #  temporary Polygon feature layers
+        #
+        for flyr in ptDirDict.values():
+            arcpy.Delete_management(flyr)
         
     except SystemExit:
         pass

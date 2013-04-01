@@ -127,10 +127,9 @@ for k, v in ptColDict.items():
     mapping[v[0]] = k
 
 
-#------------- VARIABLES Related to Sample Polygon Shapefiles -------------#
+#------------- VARIABLES Related to Sample Polygon Featureclasses -------------#
 
-sampPyShpDir = "sample_polygons"  # subdirectory containing sample polygons
-sampPyShpSuffix = "_sample_poly.shp"  # suffix for sample polygon shapefiles
+sampPyShpSuffix = "_sample_poly"  # suffix for sample polygon featureclasses
 
 #---------------------- VARIABLES Related to Control Files -----------------#
 
