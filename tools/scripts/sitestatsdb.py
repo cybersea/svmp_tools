@@ -371,6 +371,7 @@ def insert_stats(table,data,cols):
         # Set all the attributes
         # Assumes data list is in the same order as column list
         for (col,val) in zip(cols,line):
+            #msg( "col = %s , value = %s , type = %s" % ( col, val, type(val) ) )
             row.setValue(col,val)
         cur.insertRow(row)
 

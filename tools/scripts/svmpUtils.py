@@ -155,48 +155,47 @@ templateTransects = 'transects' #'transect' # Table for attributes about each tr
 trkType4Stats = ['SLPR']
 
 # Some individual column names are needed for processing
-siteCol = 'site_code' # 'site'
-samplenCol = 'tran_len_ft'  # 'samplen_m'
-zmlenCol = 'zm_len_ft' #'zmlen_m'
-zmfractionCol = 'tran_zm_frac'  # 'zm_fraction'
-zmmaxdepCol = 'tran_zm_maxd_ft' #'zm_maxdep_ft'
-zmmindepCol = 'tran_zm_mind_ft' #'zm_mindep_ft'
-maxdepflagCol = 'tran_maxd_good' #'maxdep_flag'
-mindepflagCol = 'tran_mind_good' #'mindep_flag'  
-trkmaxdepCol = 'tran_maxd_ft' #'trk_maxdep_ft'
-trkmindepCol = 'tran_mind_ft' #'trk_mindep_ft'
-
+site_results_id = 'site_results_id' # NOTE:NEW
+sitestat_veg_code = 'veg_code' #NOTE:NEW
+site_stat_id = 'sitestat_id' #NOTE:NEW
+tran_results_id = 'tran_results_id' #NOTE:NEW
+siteCol = 'site_code'
+samplenCol = 'tran_len_ft'
+zmlenCol = 'veg_len_ft'
+zmfractionCol = 'tran_veg_frac'
+zmmaxdepCol = 'tran_veg_maxd_ft'
+zmmindepCol = 'tran_veg_mind_ft'
+maxdepflagCol = 'tran_maxd_qual'
+mindepflagCol = 'tran_mind_qual'
+trkmaxdepCol = 'tran_maxd_ft'
+trkmindepCol = 'tran_mind_ft'
 trandateCol = 'transect_date'
 samplestartdateCol = 'date_samp_start'
-
-
-estmean_zmfractionCol = 'zm_frac' #'estmean_zmfraction'
-estvar_zmfractionCol = 'zm_frac_var' #'estvar_zmfraction'
-samp_areaCol = 'samp_area_ft2' #'samp_area_m2'
-est_basalcovCol = 'zm_area_ft2' #'est_basalcov_m2'
-estvar_basalcovCol = 'zm_area_var_ft4' # 'estvar_basalcov_m2'
-cv_basalcovCol = 'zm_area_cv' #'cv_basalcov'
-num_transectsCol = 'zm_area_n_tran' # 'num_transects'
-num_maxzmdepCol = 'zm_maxd_n_tran' #'num_maxzmdep'
-num_minzmdepCol = 'zm_mind_n_tran' #'num_minzmdep'
-min_maxzmdepCol = 'zm_maxd_shallowest_ft' #'min_maxzmdep_ft'
-min_minzmdepCol = 'zm_mind_shallowest_ft' #'min_minzmdep_ft'
-max_maxzmdepCol = 'zm_maxd_deepest_ft' #'max_maxzmdep_ft'
-max_minzmdepCol = 'zm_mind_deepest_ft' #'max_minzmdep_ft'
-mean_maxzmdepCol = 'zm_maxd_mean_ft' #'mean_maxzmdep_ft'
-mean_minzmdepCol = 'zm_mind_mean_ft' #'mean_minzmdep_ft'
-std_maxzmdepCol = 'zm_maxd_std'  #'std_maxzmdep' # 
-std_minzmdepCol = 'zm_mind_std' # 'std_minzmdep' # 
-se_maxzmdepCol = 'zm_maxd_se_ft' #'se_maxzmdep'
-se_minzmdepCol = 'zm_mind_se_ft' #'se_minzmdep'
-# added
+estmean_zmfractionCol = 'veg_frac' 
+estvar_zmfractionCol = 'veg_frac_var'
+samp_areaCol = 'samp_area_ft2' 
+est_basalcovCol = 'veg_area_ft2' 
+estvar_basalcovCol = 'zm_area_var_ft4'
+cv_basalcovCol = 'zm_area_cv' 
+num_transectsCol = 'veg_area_n_tran' 
+num_maxzmdepCol = 'veg_maxd_n_tran'
+num_minzmdepCol = 'veg_mind_n_tran' 
+min_maxzmdepCol = 'veg_maxd_shallowest_ft' 
+min_minzmdepCol = 'veg_mind_shallowest_ft' 
+max_maxzmdepCol = 'veg_maxd_deepest_ft' 
+max_minzmdepCol = 'veg_mind_deepest_ft' 
+mean_maxzmdepCol = 'veg_maxd_mean_ft' 
+mean_minzmdepCol = 'veg_mind_mean_ft'
+std_maxzmdepCol = 'zm_maxd_std'
+std_minzmdepCol = 'zm_mind_std'
+se_maxzmdepCol = 'veg_maxd_se_ft'
+se_minzmdepCol = 'veg_mind_se_ft'
 var_maxzmdepCol = 'zm_maxd_var_ft2'
 var_minzmdepCol = 'zm_mind_var_ft2'
-zmareaSECol = 'zm_area_se_ft2'
+zmareaSECol = 'veg_area_se_ft2'
 ci95_zmareaCol = 'zm_area_95_ci_ft'
 ci95_maxzmdepCol = 'zm_maxd_95_ci_ft'
 ci95_minzmdepCol = 'zm_mind_95_ci_ft'
-
 approx_latCol = 'approx_lat'
 approx_lonCol = 'approx_lon'
 
@@ -209,31 +208,19 @@ siteCol,
 samplestartdateCol,
 num_transectsCol,
 estmean_zmfractionCol,
-estvar_zmfractionCol,
 samp_areaCol,
 est_basalcovCol,
-estvar_basalcovCol,
-cv_basalcovCol,
 zmareaSECol,
-ci95_zmareaCol,
 num_minzmdepCol,
 mean_minzmdepCol,
 max_minzmdepCol,
 min_minzmdepCol,
-std_minzmdepCol,
-var_minzmdepCol,
 se_minzmdepCol,
-ci95_minzmdepCol,
 num_maxzmdepCol,
 mean_maxzmdepCol,
 max_maxzmdepCol,
 min_maxzmdepCol,
-std_maxzmdepCol,
-var_maxzmdepCol,
 se_maxzmdepCol,
-ci95_maxzmdepCol,
-approx_latCol,
-approx_lonCol,
 ]
 
 transTabCols = [
