@@ -716,6 +716,56 @@ if __name__ == "__main__":
         siteCols = utils.siteTabCols
         transCols = utils.transTabCols
 
+        #----------------------------------------------------------------------------------
+        #--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
+        #----------------------------------------------------------------------------------
+        #
+        #
+        #  user can still submit form when [ ERROR ]: text is set
+        #  in situation where Veg Code table is pointed somewhere where
+        #  site_status table does not exist. So we check for it here
+        # 
+        #
+        if surveyYear.startswith("[ ERROR ]:"):
+            errtext = "You need to select a samp occasion year from dropdown list"
+            e.call( errtext )
+            
+
+        
+        #
+        #
+        #  keep this here for double extra juicy QC
+        #  the user can still change the text value 
+        #  once it's been set so just to make sure, check it
+        #
+        #
+        gdb_lookup = os.path.dirname( pyGDB )
+        sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
+        sites_status_exists = arcpy.Exists( sites_status_table )
+        if sites_status_exists:
+            rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            row = rows.next()
+            if not row:
+                errtext = "The table %s has no samp_occasion year = '%s'...please submit a new samp occasion year" % ( sites_status_table, surveyYear )
+                e.call( errtext ) 
+        else:
+            errtext = "The sites_status table does not exist at path %s" % sites_status_table
+            e.call( errtext ) 
+            
+                
+        #
+        #
+        #  make sure parent dir and samp_occasion match up
+        #
+        #
+        folder_grep = [ i for i in os.path.split( ctlParentDir ) if i.find( surveyYear ) >= 0 ]
+        if not folder_grep:
+            errtext = "The samp occasion year '%s' differs from the contorl file directory year '%s'" % (surveyYear, ctlParentDir)
+            e.call( errtext )
+        #----------------------------------------------------------------------------------
+        #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
+        #----------------------------------------------------------------------------------
+
         # Get site list 
         siteList = utils.make_siteList(siteFile)
         msg("List of sites to calculate statistics:")
