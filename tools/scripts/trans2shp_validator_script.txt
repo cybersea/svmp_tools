@@ -7,9 +7,6 @@ class ToolValidator(object):
   def __init__(self):
     """Setup arcpy and the list of tool parameters."""
     self.params = arcpy.GetParameterInfo()
-    self.initialize_or_update = False
-    self.sites_status_exists = False
-    self.gdb = None
 
   def initializeParameters(self):
     """Refine the properties of a tool's parameters.  This method is
@@ -22,12 +19,6 @@ class ToolValidator(object):
     has been changed."""
 
     #
-    #  reset
-    #
-    self.params[6].value = ""
-    self.params[6].filter.list = []
-
-    #
     #  samp_occasion ( #6 ) depends on #5
     #
     veg_code_table = str( self.params[5].value )
@@ -38,22 +29,34 @@ class ToolValidator(object):
     #
     self.sites_status_exists = arcpy.Exists( os.path.join( self.gdb, 'sites_status' ) )
     if self.sites_status_exists:
-        values = set()
-        rows = arcpy.SearchCursor( os.path.join( self.gdb, 'sites_status' ) )
-        for row in rows:
-            values.add( row.getValue( 'samp_occasion' ) )
-        sort = sorted( values ) # this converts to list too
-        sort.reverse()
-        self.params[6].value = sort[0]
-        self.params[6].filter.list = sort
-        self.params[6].enabled = True
+        #
+        # 
+        #  if there is no value set 
+        #  or
+        #  the value is the ERROR value
+        #
+        if not self.params[6].value or self.params[6].value.startswith("[ ERROR ]:"):
+	        #
+	        #  reset
+	        #
+	        self.params[6].value = ""
+	        self.params[6].filter.list = []
+	
+	        values = set()
+	        rows = arcpy.SearchCursor( os.path.join( self.gdb, 'sites_status' ) )
+	        for row in rows:
+	            values.add( row.getValue( 'samp_occasion' ) )
+	        sort = sorted( values ) # this converts to list too
+	        sort.reverse()
+	        #self.params[6].value = sort[0]
+	        self.params[6].filter.list = sort
+	        self.params[6].enabled = True
     else:
         #
         #  update flag
         #
-        self.params[6].value = "The Veg Code geodatabase does not have a table called 'sites_status' -- Please fix this before running!"
+        self.params[6].value = "[ ERROR ]: The VegCode geodatabase does not have a table called 'sites_status'"
         self.params[6].enabled = False
-        pass
     return
 
   def updateMessages(self):

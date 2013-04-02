@@ -98,6 +98,26 @@ if __name__ == "__main__":
         #----------------------------------------------------------------------------------
         #--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
         #----------------------------------------------------------------------------------
+        #
+        #
+        #  user can still submit form when [ ERROR ]: text is set
+        #  in situation where Veg Code table is pointed somewhere where
+        #  site_status table does not exist. So we check for it here
+        # 
+        #
+        if surveyYear.startswith("[ ERROR ]:"):
+            errtext = "You need to select a samp occasion year from dropdown list"
+            e.call( errtext )
+            
+
+        
+        #
+        #
+        #  keep this here for double extra juicy QC
+        #  the user can still change the text value 
+        #  once it's been set so just to make sure, check it
+        #
+        #
         gdb_lookup = os.path.dirname( veg_code_lookup )
         sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
         sites_status_exists = arcpy.Exists( sites_status_table )
@@ -110,6 +130,17 @@ if __name__ == "__main__":
         else:
             errtext = "The sites_status table does not exist at path %s" % sites_status_table
             e.call( errtext ) 
+            
+                
+        #
+        #
+        #  make sure parent dir and samp_occasion match up
+        #
+        #
+        folder_grep = [ i for i in os.path.split( inParentDir ) if i.find( surveyYear ) >= 0 ]
+        if not folder_grep:
+            errtext = "The samp occasion year '%s' differs from the input parent directory year '%s'" % (surveyYear, inParentDir)
+            e.call( errtext )
         #----------------------------------------------------------------------------------
         #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
         #----------------------------------------------------------------------------------
@@ -134,7 +165,7 @@ if __name__ == "__main__":
             inDir = os.path.join(inParentDir, site)
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
             fullTransFile = os.path.join(inDir, '%s%s' % (site,utils.transFileSuffix))
-            outFC = '%s_%s%s' % (site, surveyYear,utils.ptShpSuffix )
+            outFC = '%s_%s%s' % (site, surveyYear,utils.ptFCSuffix )
             # Make list of transect files, output directories, output feature class, and site name
             sites_to_process.append([fullTransFile,outGDB,outFC,site])
             # Validate presence of input transect file
