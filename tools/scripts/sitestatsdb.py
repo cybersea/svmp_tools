@@ -22,6 +22,7 @@
 # (3) siteFile -- Full path of text file containing list of all sites for year
 # (4) siteDB -- Full path to database to store site and transect statistic tables
 # (5) surveyYear -- Survey year for data to be processed
+# (6) veg_code -- The Veg Code to run statistics on
 
 # This script is expecting a directory structure that is
 #   specific to Washington DNR's SVMP it looks as follows:
@@ -39,6 +40,7 @@
 #--------------------------------------------------------------------------
 import sys
 import os 
+from datetime import datetime
 import arcpy
 # Import functions used for SVMP scripts
 import svmpUtils as utils
@@ -101,7 +103,7 @@ def make_pyFCDict(siteList,sample_poly_path,yr,fcSuffix):
         #  the select statement is bad -- a null layer will exist
         #
         #
-        msg( "Creating temp feature layer '%s'" % fl_output_name )
+        #msg( "Creating temp feature layer '%s'" % fl_output_name )
         arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause="[%s] = '%s'" % ('sitestat_id', site_stat_poly_id) )
         if arcpy.Exists( fl_output_name ):
             siteFCDict[site] = fl_output_name
@@ -234,7 +236,7 @@ def get_Flags(site,ctlFile):
 # Calculate transect-based statistics
 # Creates a list of lists containing attributes for each transect
 # Attributes are ordered according to output data fields in transect table
-def calc_transStats(site,lnFC,trkFlagDict):
+def calc_transStats(site,lnFC,trkFlagDict, selected_veg_code):
     # Empty List to Store data for all transects at this site
     allTrkStats = []
 
@@ -283,7 +285,7 @@ def calc_transStats(site,lnFC,trkFlagDict):
                     trkDate = row.getValue(utils.shpDateCol)
                     dep = row.getValue(utils.shpDepCol)
                     vidQual = row.getValue(utils.videoCol)
-                    zmPresence = row.getValue(utils.zmCol)
+                    zmPresence = row.getValue(selected_veg_code)
                     # length of the current feature 
                     segLen = feat.length   
                     # Only use rows that have good video quality (good = 1, bad = 0)
@@ -336,10 +338,27 @@ def calc_transStats(site,lnFC,trkFlagDict):
                 # Get the flags (0,1) for max/min depth for this transect
                 trkMaxDepFlag = trkFlagDict[trk][maxFlagIdx]
                 trkMinDepFlag = trkFlagDict[trk][minFlagIdx]
-        
+
+                #----------------  SITE_RESULTS_ID ----------------------------  
+                #
+                #
+                #  Q: do we need to more QC here because we are actually doing a FKey to
+                #  site_results_id in site table? If so we should do a lookup here
+                #  wait until we meet with Allison second week of April to choose
+                #
+                #
+                site_results_id = site + "_" + startDate.strftime( "%Y%m%d" ) + "_" + selected_veg_code
+                
+                #----------------  TRAN_RESULTS_ID ----------------------------
+                trk_string = str( trk ).zfill(2)                    
+                tran_results_id = site_results_id + "_" + trk_string
+                
+               
                 # return all values in a list in the same order as the output database table
                 # for use in an InsertCursor
-                trkStats = [site,startDate,trkDate,trk,samplen,zmlen,zm_fraction,trk_maxdep_ft,zm_maxdep_ft,zm_mindep_ft,trk_mindep_ft,trkMaxDepFlag,trkMinDepFlag]
+                trkStats = [ tran_results_id,site,startDate,trkDate,selected_veg_code,trk,samplen,zmlen,zm_fraction,
+                            trk_maxdep_ft,zm_maxdep_ft,zm_mindep_ft,trk_mindep_ft,
+                            trkMaxDepFlag,trkMinDepFlag, site_results_id ]
                 allTrkStats.append(trkStats)
                 
             # No rows returned for transect query.  Transect likely outside of sample polygon   
@@ -353,7 +372,13 @@ def calc_transStats(site,lnFC,trkFlagDict):
                 
     else:
         errtext = "Site %s has Z. marina, a Sample Polygon, but No transects of Type: %s " % (site,'or'.join(utils.trkType4Stats))
-        e.call(errtext)
+        #
+        #  Q: do we really want to throw an error
+        #  or just tell the people that this site 
+        #  was not processed. Reslve with Allison
+        #  the scond week of April
+        #
+        #e.call(errtext)
 
         
     return allTrkStats
@@ -378,61 +403,8 @@ def insert_stats(table,data,cols):
     del cur  # Remove the cursor
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
-# Produce default stats values for sites without Zostera marina
-def calc_siteStats_noZm(sites,ptShpDict):
-    # Empty List to Store output data for all sites
-    allSiteStats = []
-    
-    #utils.shpDateCol
-    # Sample Size
-    n = 0
-    # ZM fraction
-    estmean_zmfraction = 0
-    estvar_zmfraction = 0
-    # Areas and variability
-    sample_area = est_basalcov = estvar_basalcov = cv_basalcov = se_basalcov = ci95_basalcov = 0
-    # Null values for depths
-    # Min Depth stats
-    n_mindep = 0
-    mean_mindep = min_mindep = max_mindep = std_mindep = var_mindep = se_mindep = ci95_mindep = utils.nullDep
-    # Max Depth stats
-    n_maxdep = 0
-    mean_maxdep = min_maxdep = max_maxdep = std_maxdep = var_maxdep = se_maxdep = ci95_maxdep = utils.nullDep
-    
-    for site in sites:
-        #------------------- DATE -----------------------------------
-        try:
-            ptFC = ptShpDict.get(site)
-            rows = arcpy.SearchCursor(ptFC,"","",utils.shpDateCol)
-            row = rows.next()
-            # Get date of first transect:
-            startDate = row.getValue(utils.shpDateCol)
-            del rows
-            del row
-        except:
-            e.call("Problem accessing or querying %s" % ptFC)
-       
-        #------------------- LOCATION -------------------------------
-#        try:
-#            lon,lat = siteCoords(site,siteXYDict)
-#        except:
-#            e.call("Error finding coordinates for site: " + site)
-
-        #-------------------- OUTPUT --------------------------------
-        siteStats = [site, startDate, n, estmean_zmfraction, estvar_zmfraction, 
-                     sample_area,est_basalcov, estvar_basalcov,cv_basalcov,se_basalcov,ci95_basalcov,
-                     n_mindep, mean_mindep, min_mindep, max_mindep, std_mindep, var_mindep, se_mindep, ci95_mindep,
-                     n_maxdep, mean_maxdep, min_maxdep, max_maxdep, std_maxdep, var_maxdep, se_maxdep, ci95_maxdep]
-
-        allSiteStats.append(siteStats)
-        #print allSiteStats
-        
-    return allSiteStats
-    
-#--------------------------------------------------------------------------    
-#--------------------------------------------------------------------------
 # Calculate statistics for sites with Zostera marina, based on transect table
-def calc_siteStats(sites,inTable,pyDirDict):
+def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code):
     # Empty List to Store output data for all sites
     allSiteStats = []
 
@@ -462,19 +434,14 @@ def calc_siteStats(sites,inTable,pyDirDict):
         # Create Search Cursor for Input Transect Data Table
         print inTable, selStatement
         rows = arcpy.SearchCursor(inTable,selStatement)
-        # are any rows returned?
-        #print "are Any rows returned?"
         row = rows.next()
-        #print "Apparently"
         # Get date from first row 
-        #if not row:
         if row == None:
             print "No rows returned"
             e.call("site %s:  No data in table %s" % (site, inTable))
-        #print row
-        #print dateCol
+
         startDate = row.getValue(dateCol)
-        #msg("Start Date: %s" % startDate)
+        #msg("Start Date: %s  | type = %s" % (startDate, type( startDate )) )
         n = 0  # Counter for number of transects used in calculations
         # Gather necessary data from data table
         while row:
@@ -513,16 +480,12 @@ def calc_siteStats(sites,inTable,pyDirDict):
 #        print "Mean transect length: " + str(mean_translen)
         # Estimated Variance of eelgrass fraction
         estvar_zmfraction = utils.ratioEstVar(samplenList,zmlenList,estmean_zmfraction,n,mean_translen)
-        msg( "Estimated variance of eelgrass fraction: " + str(estvar_zmfraction) )
         # Sampling area
         sample_area = sampPolyArea(pyFC)
-        msg( "Sample area: " + str(sample_area) )
         # Estimated basal area coverage (i.e. area of Zostera marina)
         est_basalcov = estmean_zmfraction * sample_area
-        msg( "Area of Z. Marina: " + str(est_basalcov) )
         # Estimated variance of basal area coverage 
         estvar_basalcov = estvar_zmfraction * (sample_area ** 2)
-        msg( "Variance of basal area coverage: " + str(estvar_basalcov) )
         # standard error of eelgrass area
         se_basalcov = estvar_basalcov ** 0.5
 #        print "Standard error of eelgrass area: " + str(se_basalcov)
@@ -613,11 +576,24 @@ def calc_siteStats(sites,inTable,pyDirDict):
 #        except:
 #            e.call("Error finding coordinates for site: " + site)
 
-        #-------------------- OUTPUT --------------------------------
-        siteStats = [site, startDate, n, estmean_zmfraction, estvar_zmfraction, 
-                     sample_area,est_basalcov, estvar_basalcov,cv_basalcov,se_basalcov,ci95_basalcov,
-                     n_mindep, mean_mindep, min_mindep, max_mindep, std_mindep, var_mindep, se_mindep, ci95_mindep,
-                     n_maxdep, mean_maxdep, min_maxdep, max_maxdep, std_maxdep, var_maxdep, se_maxdep, ci95_maxdep]
+        #-------------------- SITE_RESULTS_ID ------------------------
+        site_results_id = site + "_" + startDate.strftime( "%Y%m%d" ) + "_" + selected_veg_code
+
+        #-------------------- SITESTAT_ID ----------------------------
+        sitestat_id = site + "_" + startDate.strftime( "%Y" )
+      
+        #
+        #  Q: Allison and i need to review these column names.
+        #  we also need to talk about class-based modules
+        #  helping with edits in the future
+        #  where are the following column keys calculated:
+        #  zmareaSECol  = se_basalcov for now
+        #  
+        #  
+        siteStats = [ site_results_id, site, startDate, selected_veg_code, n, estmean_zmfraction, 
+                     sample_area, est_basalcov, se_basalcov,
+                     n_mindep, mean_mindep, max_mindep, min_mindep, se_mindep,
+                     n_maxdep, mean_maxdep, max_maxdep, min_maxdep, se_maxdep, sitestat_id]
 
         allSiteStats.append(siteStats)
 
@@ -687,6 +663,8 @@ if __name__ == "__main__":
         siteDB = arcpy.GetParameterAsText(4)   
         # Survey Year for data to be processed
         surveyYear = arcpy.GetParameterAsText(5)
+        # Veg Code
+        selected_veg_code = arcpy.GetParameterAsText(6)
         
         # Suffix for Transect Point Shapefiles
         ptSuffix = utils.ptFCSuffix  
@@ -757,6 +735,8 @@ if __name__ == "__main__":
         #
         #  make sure parent dir and samp_occasion match up
         #
+        #  Q: better QC method might be to put SearchCursor on start_date
+        #  of input field and use that instead
         #
         folder_grep = [ i for i in os.path.split( ctlParentDir ) if i.find( surveyYear ) >= 0 ]
         if not folder_grep:
@@ -765,6 +745,49 @@ if __name__ == "__main__":
         #----------------------------------------------------------------------------------
         #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
         #----------------------------------------------------------------------------------
+        
+        
+        #----------------------------------------------------------------------------------
+        #--- MAKE SURE SELECTED VEG CODE VALUE IS IN VEG_CODES.VEG_CODE -------------------
+        #----------------------------------------------------------------------------------
+        #
+        #
+        #  user can still submit form when [ ERROR ]: text is set
+        #  in situation where Veg Code table is pointed somewhere where
+        #  veg_code table does not exist. So we check for it here
+        # 
+        #
+        if surveyYear.startswith("[ ERROR ]:"):
+            errtext = "You need to select a veg code to run from dropdown list"
+            e.call( errtext )
+            
+
+        
+        #
+        #
+        #  keep this here for double extra juicy QC
+        #  the user can still change the text value 
+        #  once it's been set so just to make sure, check it
+        #
+        #
+        gdb_lookup = os.path.dirname( pyGDB )
+        veg_codes_table = os.path.join( gdb_lookup, 'veg_codes' )
+        veg_codes_exists = arcpy.Exists( veg_codes_table )
+        if veg_codes_exists:
+            rows = arcpy.SearchCursor( veg_codes_table, where_clause="[veg_code] = '%s'" % selected_veg_code )
+            row = rows.next()
+            if not row:
+                errtext = "The table %s has no veg_code = '%s'...please submit a new veg code" % ( veg_codes_table, selected_veg_code )
+                e.call( errtext ) 
+        else:
+            errtext = "The veg_codes table does not exist at path %s" % veg_codes_table
+            e.call( errtext ) 
+            
+        #----------------------------------------------------------------------------------
+        #--- END MAKE SURE SELECTED VEG CODE VALUE IS IN VEG_CODES.VEG_CODE ---------------
+        #----------------------------------------------------------------------------------
+        
+        
 
         # Get site list 
         siteList = utils.make_siteList(siteFile)
@@ -772,9 +795,12 @@ if __name__ == "__main__":
         for site in siteList:
             msg(site)
 
-        # Initialize lists to hold sites with and without eelgrass
-        siteList_NoZm = []
-        siteList_Zm = []
+        #
+        # Initialize lists to hold sites with and without veg_codes
+        # for later QC
+        #
+        siteList_NoVegCode = []
+        siteList_VegCode = []
 
         # Make a dictionary containing the sites and the 
         #  full path to transect point shapefiles
@@ -806,30 +832,40 @@ if __name__ == "__main__":
             e.call(errtext)
 
         
-        # Loop through all sites and make a list of those without eelgrass
-        for site, shapefile in ptDirDict.items():
+        # Loop through all sites and make a list of those without vegetation
+        # columns that match the selected_veg_code input
+        # the purpose of this code here is to make sure we are only
+        # running stats for sites that have valid veg_code columns
+        # 
+        #
+        # Q: Currently, we create a list of sites with and without selected_veg_code columns
+        # but we could through and error if needed here. Since we can expect
+        # that some sites *will not* contain the selected_veg_code then we gracefully handle this
+        # and throw them into a list. Check with Allison when we meet the second week of April
+        #
+        # Q: should we be doing a higher-level Search filter here for sites
+        # to process based on site_id and presences of selected_veg_code?
+        # that way we are only running sites with that veg_code column
+        # and it's known before we try to access it with SearchCursor below
+        # not sure how this question fits into expected workflow so 
+        # save this for Allison when we meet the second week of April
+        #
+        #
+        for site, featureclass in ptDirDict.items():
             try:
-                # Create Search Cursor for Input Transect Data Table
-                # Sort on Zmarina column, descending -- contains only zero or one for presence/absence
-                rows = arcpy.SearchCursor(shapefile,"","",utils.zmCol, "%s D" % utils.zmCol)
-                # First row contains max value
-                row = rows.next()
-                ZmFlag = row.getValue(utils.zmCol)
-            except:
+                field_list = arcpy.ListFields( featureclass )
+                field_name_list = [ i.name for i in field_list ]
+                if selected_veg_code not in field_name_list:
+                    siteList_NoVegCode.append( site )
+                    continue
+                siteList_VegCode.append( site )
+            except Exception:
                 e.call("Sorry, there was a problem accessing or querying feature class %s" % site)
-
-            # if max value is zero, there is no Z. marina at the site.
-            # Add site to the the list of sites without Z. marina
-            if ZmFlag:
-                siteList_Zm.append(site)
-            else:
-                #msg("No Zostera marina at site %s" % site)
-                siteList_NoZm.append(site)
                 
-        siteList_Zm.sort()
-        siteList_NoZm.sort()        
-        msg("Sites with Zostera marina:\n" +  '\n'.join(siteList_Zm))
-        msg("Sites without Zostera marina:\n" + '\n'.join(siteList_NoZm))
+        siteList_VegCode.sort()
+        siteList_NoVegCode.sort()        
+        msg("Sites with Veg Code = %s:\n" % ( selected_veg_code ) +  '\n'.join(siteList_VegCode))
+        msg("Sites without Veg Code = %s:\n" % ( selected_veg_code ) + '\n'.join(siteList_NoVegCode))
 
         #
         # Make a dictionary containing the sites and the temp feature_layer name
@@ -861,7 +897,7 @@ if __name__ == "__main__":
             e.call(errtext)
             
         # Loop throught all sites with Eelgrass
-        for site in siteList_Zm:
+        for site in siteList_VegCode:
             msg("-------- SITE ID: %s --------" % site)
             msg("Calculating statistics for site: '%s'" % site)
             ptFC = ptDirDict[site]  # get point feature class name
@@ -904,36 +940,30 @@ if __name__ == "__main__":
             # Calculate Transect Statistics 
             #Transect statistics (list of lists, in order by columns in output tables
             msg("Calculating transect statistics")
-            transStats = calc_transStats(site,cliplnFC,trkFlagDict)
+            transStats = calc_transStats(site,cliplnFC,trkFlagDict,selected_veg_code)
 
             # Insert Transect Statistics into annual Transects data table
             msg("Inserting transect statistics into data table")
-            insert_stats(trans_table_fullpath,transStats,transCols)
+            #
+            #
+            #  Q: skips non SLPR trans stuff
+            #
+            #
+            if transStats:
+                insert_stats(trans_table_fullpath,transStats,transCols)
 
             # Delete the temporary line files:
             arcpy.Delete_management(lnFC)
             arcpy.Delete_management(cliplnFC)
 
         # Calculate Site Statistics for Z. marina sites
-        if siteList_Zm:
-            msg("Calculating site statistics for sites with Z. marina")
-            siteStats_Zm = calc_siteStats(siteList_Zm,trans_table_fullpath,pyDirDict)
+        if siteList_VegCode:
+            msg("Calculating site statistics for sites with Veg Code = %s" % selected_veg_code )
+            siteStats_Zm = calc_siteStats(siteList_VegCode,trans_table_fullpath,pyDirDict,selected_veg_code)
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_Zm,siteCols)
-        if siteList_NoZm:
-            msg("Calculating site statistics for sites without Z. marina")
-            siteStats_NoZm = calc_siteStats_noZm(siteList_NoZm,ptDirDict)
-            msg("Inserting site statistics into data table")
-            insert_stats(site_table_fullpath,siteStats_NoZm,siteCols)
             
-        #
-        #  just to be sure we are clearing all memory
-        #  used during program we manually delete all
-        #  temporary Polygon feature layers
-        #
-        for flyr in ptDirDict.values():
-            arcpy.Delete_management(flyr)
         
     except SystemExit:
         pass

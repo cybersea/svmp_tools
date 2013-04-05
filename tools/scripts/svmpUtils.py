@@ -204,8 +204,10 @@ approx_lonCol = 'approx_lon'
 # If the table column names are changed, this list must be changed too.
 # Site and Transect Table Field Names
 siteTabCols = [
+site_results_id,
 siteCol,
 samplestartdateCol,
+sitestat_veg_code,
 num_transectsCol,
 estmean_zmfractionCol,
 samp_areaCol,
@@ -221,12 +223,15 @@ mean_maxzmdepCol,
 max_maxzmdepCol,
 min_maxzmdepCol,
 se_maxzmdepCol,
+site_stat_id
 ]
 
 transTabCols = [
+tran_results_id,
 siteCol,
 samplestartdateCol,
 trandateCol,
+sitestat_veg_code,
 trkCol,
 samplenCol,
 zmlenCol,
@@ -237,6 +242,7 @@ zmmindepCol,
 trkmindepCol,
 maxdepflagCol,
 mindepflagCol,
+site_results_id
 ]
 
 #-------------- VARIABLES Related to Soundwide Area Data Tables ----------------#

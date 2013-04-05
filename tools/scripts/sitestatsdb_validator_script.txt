@@ -18,15 +18,62 @@ class ToolValidator(object):
     validation is performed.  This method is called whenever a parameter
     has been changed."""
 
+	#---------------------------------------
+	#------- VEG CODE ----------------------
+	#---------------------------------------
+    #
+    #  veg_code ( #6 ) depends on #1
+    #
+    samp_polygons = str( self.params[1].value )
+    gdb = os.path.dirname( samp_polygons )
+    #
+    #  qc that the table sites_status exists
+    #
+    self.veg_code_exists = arcpy.Exists( os.path.join(gdb, 'veg_codes' ) )
+    if self.veg_code_exists:
+        #
+        # 
+        #  if there is no value set 
+        #  or
+        #  the value is the ERROR value
+        #
+        if not self.params[6].value or self.params[6].value.startswith("[ ERROR ]:"):
+	        #
+	        #  reset
+	        #
+	        self.params[6].value = ""
+	        self.params[6].filter.list = []
+	
+	        values = set()
+	        rows = arcpy.SearchCursor( os.path.join(gdb, 'veg_codes' ) )
+	        for row in rows:
+	            values.add( row.getValue( 'veg_code' ) )
+	        sort = sorted( values ) # this converts to list too
+	        sort.reverse()
+	        self.params[6].filter.list = sort
+	        self.params[6].enabled = True
+    else:
+        #
+        #  update flag
+        #
+        self.params[6].value = "[ ERROR ]: The Sample Polygon geodatabase does not have a table called 'veg_codes'"
+        self.params[6].enabled = False
+	#---------------------------------------
+	#------- END VEG CODE ------------------
+	#---------------------------------------
+	
+	#---------------------------------------
+	#------- SAMP OCCASSION ----------------
+	#---------------------------------------
     #
     #  samp_occasion ( #5 ) depends on #1
     #
     samp_polygons = str( self.params[1].value )
-    self.gdb = os.path.dirname( samp_polygons )
+    gdb = os.path.dirname( samp_polygons )
     #
     #  qc that the table sites_status exists
     #
-    self.sites_status_exists = arcpy.Exists( os.path.join( self.gdb, 'sites_status' ) )
+    self.sites_status_exists = arcpy.Exists( os.path.join(gdb, 'sites_status' ) )
     if self.sites_status_exists:
         #
         # 
@@ -42,7 +89,7 @@ class ToolValidator(object):
 	        self.params[5].filter.list = []
 	
 	        values = set()
-	        rows = arcpy.SearchCursor( os.path.join( self.gdb, 'sites_status' ) )
+	        rows = arcpy.SearchCursor( os.path.join(gdb, 'sites_status' ) )
 	        for row in rows:
 	            values.add( row.getValue( 'samp_occasion' ) )
 	        sort = sorted( values ) # this converts to list too
@@ -55,6 +102,9 @@ class ToolValidator(object):
         #
         self.params[5].value = "[ ERROR ]: The Sample Polygon geodatabase does not have a table called 'sites_status'"
         self.params[5].enabled = False
+	#---------------------------------------
+	#------- END SAMP OCCASSION ------------
+	#---------------------------------------
     return
 
   def updateMessages(self):
