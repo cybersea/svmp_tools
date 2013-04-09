@@ -185,7 +185,8 @@ class TransectDatasource( object ):
             #  any other option yet
             #   
             #
-            for field in self.transect_csv.veg_code_fields:               
+            for field in self.transect_csv.veg_code_fields:  
+                # Question -- why is the whole field definition here?
                 insert_indx = self.insert_fields.index( [ self.videoCol ,'SHORT','#','#','#' ] )
                 self.insert_fields.insert( insert_indx, field )
                 
@@ -199,7 +200,7 @@ class TransectDatasource( object ):
             errtext = "Unable to create feature class: '%s' or unable to add fields" % self.full_output_path
             errtext += "\nTry closing ArcMap, or other applications that may be accessing these data."
             errtext += "\nIf you are viewing the data in ArcCatalog, change directories and choose 'Refresh' under the 'View' menu."
-            errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
+            #errtext += "\nYou can also try deleting the existing shapefile manually from the file system."
             raise CreateFeatureClassError( errtext )
         
     def _add_featureclass_fields( self ):

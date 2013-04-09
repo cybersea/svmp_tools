@@ -2,7 +2,7 @@
 # Tool Name:  ConvertTransectDatatoShapefiles
 # Tool Label: Convert Transect Data to Shapefiles
 # Source Name: trans2shp.py
-# Version: ArcGIS 10.x
+# Version: ArcGIS 10.0
 # Author: Allison Bailey, Sound GIS and Greg Corradini, ChopShop Geospatial
 # For: Washington DNR, Submerged Vegetation Monitoring Program (SVMP)
 # Date: February 2007, Modified June 2007, Modified March 2013
@@ -16,7 +16,7 @@
 # (0) inParentDir -- Parent directory for input files
 # (1) inCoordSys -- Coordinate system for input data
 # (2) siteFile -- Full path of text file containing list of sites
-# (3) outGDB -- Parent directory for output files
+# (3) outGDB -- Geodatabase for output point feature classes
 # (4) outCoordSys -- Coordinate system for output shapefiles
 # (5) veg_code -- Table path that points to veg_code for lookups
 # (6) surveyYear -- Survey year for data to be processed
@@ -60,10 +60,7 @@ from transect_csv import TransectCSV
 def msg(msg):
     arcpy.AddMessage(msg)
 
-# Wrapper for GetParametersAsText
-def get(idx):
-    return arcpy.GetParameterAsText(idx)
-          
+    
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 #MAIN
@@ -84,16 +81,26 @@ if __name__ == "__main__":
         #-- Get parameters -----
         # Input Data Parent Directory 
         # Transect ASCII files are located in subdirectories below here
-        #  Default: Environment - current workspace
-        # outGDB: Output Geodatabase.  Default: Environment - scratch workspace
-        # siteFile: Full Path of text file containing list of sites to process
-        inParentDir,siteFile,outGDB = get(0),get(2),get(3) 
+        # Parameter Data Type: Folder, Default: Environment - current workspace
+        inParentDir = arcpy.GetParameterAsText(0)
         # Input Data Coordinate System.  Default:  GCS_WGS_1984
+        # Parameter Data Type: Spatial Reference
+        inCoordSys = arcpy.GetParameter(1)
+        # siteFile: Full Path of text file containing list of sites to process
+        # Parameter Data Type: File
+        siteFile = arcpy.GetParameterAsText(2)
+        # outGDB: Output Geodatabase for transect point feature classes. 
+        # Parameter Data Type:  Workspace, Filter: Workspace - geodatabases only
+        outGDB = arcpy.GetParameterAsText(3) 
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
-        inCoordSys,outCoordSys = arcpy.GetParameter(1),arcpy.GetParameter(4)
+        # Parameter Data Type: Spatial Reference
+        outCoordSys = arcpy.GetParameter(4)
         # veg_code_lookup is full path to veg_code table
+        # Parameter Data Type: Table
+        veg_code_lookup = arcpy.GetParameterAsText(5)
         # Survey Year for data to be processed
-        veg_code_lookup,surveyYear = get(5),get(6)
+        # Parameter Data Type:  String
+        surveyYear = arcpy.GetParameterAsText(6)
         
         #----------------------------------------------------------------------------------
         #--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
@@ -106,7 +113,7 @@ if __name__ == "__main__":
         # 
         #
         if surveyYear.startswith("[ ERROR ]:"):
-            errtext = "You need to select a samp occasion year from dropdown list"
+            errtext = "You need to select a sampling occasion from dropdown list"
             e.call( errtext )
             
 
@@ -122,10 +129,13 @@ if __name__ == "__main__":
         sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
         sites_status_exists = arcpy.Exists( sites_status_table )
         if sites_status_exists:
-            rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            where_clause = "[samp_occasion] = '%s'" % surveyYear
+            #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            # Arc 10.0 cannot used named args in SearchCursor
+            rows = arcpy.SearchCursor( sites_status_table, where_clause)
             row = rows.next()
             if not row:
-                errtext = "The table %s has no samp_occasion year = '%s'...please submit a new samp occasion year" % ( sites_status_table, surveyYear )
+                errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, surveyYear )
                 e.call( errtext ) 
         else:
             errtext = "The sites_status table does not exist at path %s" % sites_status_table
@@ -139,7 +149,7 @@ if __name__ == "__main__":
         #
         folder_grep = [ i for i in os.path.split( inParentDir ) if i.find( surveyYear ) >= 0 ]
         if not folder_grep:
-            errtext = "The samp occasion year '%s' differs from the input parent directory year '%s'" % (surveyYear, inParentDir)
+            errtext = "The sampling occasion '%s' differs from\nthe input parent directory path '%s'" % (surveyYear, inParentDir)
             e.call( errtext )
         #----------------------------------------------------------------------------------
         #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------

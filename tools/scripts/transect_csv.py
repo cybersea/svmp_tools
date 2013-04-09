@@ -205,12 +205,14 @@ class TransectCSV( object ):
                 new_veg_code_field = copy.deepcopy( utils.veg_code_template )
                 new_veg_code_field[0] = source_veg_code
                 self.veg_code_fields.append( new_veg_code_field )
-                
-            msg( '------------------------------------')
-            msg( '---- Veg Codes Found in this CSV----')
-            msg( '------------------------------------')
+            
+            msg_text = "Veg Code Columns in CSV: "  
+            fldnms = []
             for code in self.veg_code_fields:
-                msg( code )
+                fldnms.append(code[0])
+            if fldnms:
+                msg_text += ", ".join(fldnms)
+            msg( msg_text )
             #
             #
             #  if no veg_code_fields exist
@@ -221,7 +223,8 @@ class TransectCSV( object ):
             #
             #
             if not self.veg_code_fields:
-                raise MissingVegCodeField( "No CSV columns from the file '%s' match any of the expected Veg Code columns %s" % 
-                                           ( self.file_path, str( self.valid_veg_codes) ) )
+                # It would be nice if this list was displayed in original case, not all lower
+                raise MissingVegCodeField( "The CSV file, '%s' has no Veg Code columns:\nPossible Veg Code columns are: %s" % 
+                                           ( os.path.basename( self.file_path ), ", ".join( self.valid_veg_codes) ) )
             
 
