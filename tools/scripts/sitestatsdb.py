@@ -16,8 +16,8 @@
 # a full set of data
 
 # Parameters:
-# (1) ptTransectGDB -- Parent directory for site point shapefiles
-# (2) pyGDB -- Parent directory for sample polygon shapefiles
+# (1) ptTransectGDB -- Geodatabase for site point feature classes
+# (2) sampPyFC -- Sample Polygon Feature Class
 # (3) ctlParentDir -- Parent directory for site control files
 # (3) siteFile -- Full path of text file containing list of all sites for year
 # (4) siteDB -- Full path to database to store site and transect statistic tables
@@ -104,7 +104,9 @@ def make_pyFCDict(siteList,sample_poly_path,yr,fcSuffix):
         #
         #
         #msg( "Creating temp feature layer '%s'" % fl_output_name )
-        arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause="[%s] = '%s'" % ('sitestat_id', site_stat_poly_id) )
+        # Arc 10.0 cannot use named args
+        where_clause="[%s] = '%s'" % ('sitestat_id', site_stat_poly_id)
+        arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause )
         if arcpy.Exists( fl_output_name ):
             siteFCDict[site] = fl_output_name
         else:
@@ -265,7 +267,9 @@ def calc_transStats(site,lnFC,trkFlagDict, selected_veg_code):
             # Select lines from a particular track that have the correct track type (SLPR) for eelgrass area calculations
             # NOTE:  Don't need track type in SQL, because already filtered for that in creating list of tracks
             # Need to form a select statment like "tran_num" = 1
-            selStatement = '''"%s" = %s''' % (utils.trkCol,trk)
+            #selStatement = '''"%s" = %s''' % (utils.trkCol,trk)
+            selStatement = "[tran_num] = %s" % (trk)
+            #msg(selStatement)
             # Create a search cursor for rows that meet the query's criteria
             rows = arcpy.SearchCursor(lnFC,selStatement)
             row = rows.next()
@@ -404,7 +408,7 @@ def insert_stats(table,data,cols):
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
 # Calculate statistics for sites with Zostera marina, based on transect table
-def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code):
+def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
     # Empty List to Store output data for all sites
     allSiteStats = []
 
@@ -580,7 +584,8 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code):
         site_results_id = site + "_" + startDate.strftime( "%Y%m%d" ) + "_" + selected_veg_code
 
         #-------------------- SITESTAT_ID ----------------------------
-        sitestat_id = site + "_" + startDate.strftime( "%Y" )
+        ## -- This needs to be the sampling occasion field value, not necessarily year
+        sitestat_id = site + "_" + samp_occasion #startDate.strftime( "%Y" )
       
         #
         #  Q: Allison and i need to review these column names.
@@ -650,20 +655,26 @@ if __name__ == "__main__":
         #e.pdb = True
 
         #Get parameters
-        # Input Transect Point Shapefile Parent Directory 
-        # Transect ASCII files are located in subdirectories below here 
+        # Input Transect Point Geodatabase 
+        # Parameter Data Type: Workspace, Filter: Workspace - geodatabases only
         ptTransectGDB = arcpy.GetParameterAsText(0)  
-        # Input Sample Polygon Shapefile Parent Directory 
-        pyGDB = arcpy.GetParameterAsText(1)
+        # Input Sample Polygon Feature Class 
+        # Parameter Data Type:  Feature Class
+        sampPyFC = arcpy.GetParameterAsText(1)
         # Control File Parent Directory
+        # Parameter Data Type:  Folder
         ctlParentDir = arcpy.GetParameterAsText(2)
         # Full Path of text file containing list of sites to process
+        # Parameter Data Type: File
         siteFile = arcpy.GetParameterAsText(3) 
         # Full Path to database to store site and transect statistic tables
+        # Parameter Data Type: Workspace or Feature Dataset
         siteDB = arcpy.GetParameterAsText(4)   
         # Survey Year for data to be processed
+        # Parameter Data Type: String
         surveyYear = arcpy.GetParameterAsText(5)
         # Veg Code
+        # Parameter Data Type: STring
         selected_veg_code = arcpy.GetParameterAsText(6)
         
         # Suffix for Transect Point Shapefiles
@@ -717,14 +728,17 @@ if __name__ == "__main__":
         #  once it's been set so just to make sure, check it
         #
         #
-        gdb_lookup = os.path.dirname( pyGDB )
+        gdb_lookup = os.path.dirname( sampPyFC )
         sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
         sites_status_exists = arcpy.Exists( sites_status_table )
         if sites_status_exists:
-            rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            where_clause = "[samp_occasion] = '%s'" % surveyYear
+            #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            # Arc 10.0 cannot used named args in SearchCursor
+            rows = arcpy.SearchCursor( sites_status_table, where_clause)
             row = rows.next()
             if not row:
-                errtext = "The table %s has no samp_occasion year = '%s'...please submit a new samp occasion year" % ( sites_status_table, surveyYear )
+                errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, surveyYear )
                 e.call( errtext ) 
         else:
             errtext = "The sites_status table does not exist at path %s" % sites_status_table
@@ -740,7 +754,7 @@ if __name__ == "__main__":
         #
         folder_grep = [ i for i in os.path.split( ctlParentDir ) if i.find( surveyYear ) >= 0 ]
         if not folder_grep:
-            errtext = "The samp occasion year '%s' differs from the contorl file directory year '%s'" % (surveyYear, ctlParentDir)
+            errtext = "The sampling occasion '%s' differs from\nthe control file directory path '%s'" % (surveyYear, ctlParentDir)
             e.call( errtext )
         #----------------------------------------------------------------------------------
         #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
@@ -770,14 +784,16 @@ if __name__ == "__main__":
         #  once it's been set so just to make sure, check it
         #
         #
-        gdb_lookup = os.path.dirname( pyGDB )
+        gdb_lookup = os.path.dirname( sampPyFC )
         veg_codes_table = os.path.join( gdb_lookup, 'veg_codes' )
         veg_codes_exists = arcpy.Exists( veg_codes_table )
         if veg_codes_exists:
-            rows = arcpy.SearchCursor( veg_codes_table, where_clause="[veg_code] = '%s'" % selected_veg_code )
+            # Arc 10.0 cannot used named args in SearchCursor
+            where_clause="[veg_code] = '%s'" % selected_veg_code
+            rows = arcpy.SearchCursor( veg_codes_table, where_clause )
             row = rows.next()
             if not row:
-                errtext = "The table %s has no veg_code = '%s'...please submit a new veg code" % ( veg_codes_table, selected_veg_code )
+                errtext = "The table %s has no veg_code = '%s'\...Please enter a new veg code" % ( veg_codes_table, selected_veg_code )
                 e.call( errtext ) 
         else:
             errtext = "The veg_codes table does not exist at path %s" % veg_codes_table
@@ -876,10 +892,10 @@ if __name__ == "__main__":
         # this workflow might slow things down. However, this is the only
         # solution that i can come up with at this time. 
         #
-        if not arcpy.Exists( pyGDB ):
-            errtext = "The sample polygons feature class does not exist '%s' " % pyGDB
+        if not arcpy.Exists( sampPyFC ):
+            errtext = "The sample polygons feature class does not exist '%s' " % sampPyFC
             e.call(errtext)
-        pyDirDict, missingSamplePolys = make_pyFCDict(siteList,pyGDB,surveyYear,pySuffix)
+        pyDirDict, missingSamplePolys = make_pyFCDict(siteList,sampPyFC,surveyYear,pySuffix)
                 
         if missingSamplePolys:
             errtext = "The following sites have Z. marina, but are missing sample polygons for %s:\n" % surveyYear
@@ -896,7 +912,7 @@ if __name__ == "__main__":
             errtext += ("Make sure that the database is not open in ArcGIS or MS Access")
             e.call(errtext)
             
-        # Loop throught all sites with Eelgrass
+        # Loop throught all sites with Vegetation of interest
         for site in siteList_VegCode:
             msg("-------- SITE ID: %s --------" % site)
             msg("Calculating statistics for site: '%s'" % site)
@@ -906,12 +922,12 @@ if __name__ == "__main__":
             # GDB location of temp files
             gdb_temp_dir_path = os.path.dirname(ptFC)
             # name for Line Feature Class (put in same directory as input points)
-            shape_name = "_%s_%s_transect_line" % (surveyYear,site)
+            shape_name = "_%s_%s_transect_line" % (site,surveyYear)
             lnFC = os.path.join( gdb_temp_dir_path, shape_name)
             # full path for sample Polygon Feature Class
             pyFC = pyDirDict[site]
             # Output clipped Line Feature Class name
-            shape_name = "_%s_%s_transect_line_clip" % (surveyYear,site)
+            shape_name = "_%s_%s_transect_line_clip" % (site,surveyYear)
             cliplnFC = os.path.join( gdb_temp_dir_path, shape_name )
             # Control File Name
             ctlFile = "".join((site,ctlSuffix))
@@ -956,10 +972,10 @@ if __name__ == "__main__":
             arcpy.Delete_management(lnFC)
             arcpy.Delete_management(cliplnFC)
 
-        # Calculate Site Statistics for Z. marina sites
+        # Calculate Site Statistics for Vegetation of interest sites
         if siteList_VegCode:
             msg("Calculating site statistics for sites with Veg Code = %s" % selected_veg_code )
-            siteStats_Zm = calc_siteStats(siteList_VegCode,trans_table_fullpath,pyDirDict,selected_veg_code)
+            siteStats_Zm = calc_siteStats(siteList_VegCode,trans_table_fullpath,pyDirDict,selected_veg_code,surveyYear)
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_Zm,siteCols)
