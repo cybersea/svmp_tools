@@ -105,7 +105,8 @@ def make_pyFCDict(siteList,sample_poly_path,yr,fcSuffix):
         #
         #msg( "Creating temp feature layer '%s'" % fl_output_name )
         # Arc 10.0 cannot use named args
-        where_clause="[%s] = '%s'" % ('sitestat_id', site_stat_poly_id)
+        delimited_field = arcpy.AddFieldDelimiters( sample_poly_fc, 'sitestat_id' )
+        where_clause= delimited_field + " = " + "'%s'" % (site_stat_poly_id)
         arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause )
         if arcpy.Exists( fl_output_name ):
             siteFCDict[site] = fl_output_name
@@ -721,7 +722,8 @@ if __name__ == "__main__":
         sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
         sites_status_exists = arcpy.Exists( sites_status_table )
         if sites_status_exists:
-            where_clause = "[samp_occasion] = '%s'" % surveyYear
+            delimited_field = arcpy.AddFieldDelimiters( sites_status_table, 'samp_occasion' )
+            where_clause =  delimited_field + " = " + "'%s'" % surveyYear
             #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
             # Arc 10.0 cannot used named args in SearchCursor
             rows = arcpy.SearchCursor( sites_status_table, where_clause)
@@ -775,7 +777,8 @@ if __name__ == "__main__":
         veg_codes_exists = arcpy.Exists( veg_codes_table )
         if veg_codes_exists:
             # Arc 10.0 cannot used named args in SearchCursor
-            where_clause="[veg_code] = '%s'" % selected_veg_code
+            delimited_field = arcpy.AddFieldDelimiters( veg_codes_table, 'veg_code' )
+            where_clause = delimited_field + " = " +  "'%s'" % selected_veg_code
             rows = arcpy.SearchCursor( veg_codes_table, where_clause )
             row = rows.next()
             if not row:

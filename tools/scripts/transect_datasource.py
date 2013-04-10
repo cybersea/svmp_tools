@@ -242,15 +242,11 @@ class TransectDatasource( object ):
         #  to be resused later if needed
         #
         #
-        search_string = ""
-        if isinstance( lookup_value, int ):
-            search_string = "[%s] = %s"
-        elif isinstance( lookup_value, str ):
-            search_string = "[%s] = '%s'"
-        search_string = search_string %( lookup_key, str( lookup_value ) )
+        delimited_field = arcpy.AddFieldDelimiters( path, lookup_key )
+        search_string = delimited_field + " = " + "'%s'" %( str( lookup_value ) )
       
       
-        scurse = arcpy.SearchCursor( path, where_clause=search_string )
+        scurse = arcpy.SearchCursor( path, search_string )
         row = scurse.next()
         if not row:
             errtext = "You tried FKEY lookup '%s' on table [ %s ] and it query returned nothing" % ( search_string, self.full_output_path )

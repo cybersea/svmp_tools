@@ -129,7 +129,8 @@ if __name__ == "__main__":
         sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
         sites_status_exists = arcpy.Exists( sites_status_table )
         if sites_status_exists:
-            where_clause = "[samp_occasion] = '%s'" % surveyYear
+            delimited_field = arcpy.AddFieldDelimiters( sites_status_table, 'samp_occasion' )
+            where_clause = delimited_field + " = " + "'%s'" % surveyYear
             #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
             # Arc 10.0 cannot used named args in SearchCursor
             rows = arcpy.SearchCursor( sites_status_table, where_clause)
