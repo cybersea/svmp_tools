@@ -854,7 +854,10 @@ if __name__ == "__main__":
         siteList_VegCode.sort()
         siteList_NoVegCode.sort()        
         msg("Sites with Veg Code = %s:\n" % ( selected_veg_code ) +  '\n'.join(siteList_VegCode))
-        msg("Sites without Veg Code = %s:\n" % ( selected_veg_code ) + '\n'.join(siteList_NoVegCode))
+        if siteList_NoVegCode:
+            errtext = "You are trying to run statistics on sites with a Veg Code = %s." % selected_veg_code
+            errtext += "\nBut the following sites in your site list do not have this Veg Code. Please remove them before running again:\n%s" % "\n".join(siteList_NoVegCode)
+            e.call( errtext )
 
         #
         # Make a dictionary containing the sites and the temp feature_layer name
