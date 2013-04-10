@@ -21,7 +21,7 @@
 # (3) ctlParentDir -- Parent directory for site control files
 # (3) siteFile -- Full path of text file containing list of all sites for year
 # (4) siteDB -- Full path to database to store site and transect statistic tables
-# (5) surveyYear -- Survey year for data to be processed
+# (5) sampOccasion -- sites_status table samp_occasion field chosen
 # (6) veg_code -- The Veg Code to run statistics on
 
 # This script is expecting a directory structure that is
@@ -659,7 +659,7 @@ if __name__ == "__main__":
         siteDB = arcpy.GetParameterAsText(4)   
         # Survey Year for data to be processed
         # Parameter Data Type: String
-        surveyYear = arcpy.GetParameterAsText(5)
+        sampOccasion = arcpy.GetParameterAsText(5)
         # Veg Code
         # Parameter Data Type: STring
         selected_veg_code = arcpy.GetParameterAsText(6)
@@ -683,9 +683,9 @@ if __name__ == "__main__":
         # msg("Template Transects" + template_transects_fullpath)
 
         # Output Statistics Table Names -- use year as prefix 
-        site_table = template_sites + surveyYear # surveyYear + template_sites
+        site_table = template_sites + sampOccasion # sampOccasion + template_sites
         site_table_fullpath = os.path.join(siteDB,site_table)
-        trans_table = template_transects + surveyYear # surveyYear + template_transects
+        trans_table = template_transects + sampOccasion # sampOccasion + template_transects
         trans_table_fullpath = os.path.join(siteDB,trans_table)
 
         # Site and Transect Table Field Names
@@ -705,7 +705,7 @@ if __name__ == "__main__":
         #  site_status table does not exist. So we check for it here
         # 
         #
-        if surveyYear.startswith("[ ERROR ]:"):
+        if sampOccasion.startswith("[ ERROR ]:"):
             errtext = "You need to select a samp occasion year from dropdown list"
             e.call( errtext )
             
@@ -723,13 +723,13 @@ if __name__ == "__main__":
         sites_status_exists = arcpy.Exists( sites_status_table )
         if sites_status_exists:
             delimited_field = arcpy.AddFieldDelimiters( sites_status_table, 'samp_occasion' )
-            where_clause =  delimited_field + " = " + "'%s'" % surveyYear
-            #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            where_clause =  delimited_field + " = " + "'%s'" % sampOccasion
+            #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % sampOccasion )
             # Arc 10.0 cannot used named args in SearchCursor
             rows = arcpy.SearchCursor( sites_status_table, where_clause)
             row = rows.next()
             if not row:
-                errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, surveyYear )
+                errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, sampOccasion )
                 e.call( errtext ) 
         else:
             errtext = "The sites_status table does not exist at path %s" % sites_status_table
@@ -740,9 +740,9 @@ if __name__ == "__main__":
         #
         #  make sure parent dir and samp_occasion match up
         #
-        folder_grep = [ i for i in os.path.split( ctlParentDir ) if i.find( surveyYear ) >= 0 ]
+        folder_grep = [ i for i in os.path.split( ctlParentDir ) if i.find( sampOccasion ) >= 0 ]
         if not folder_grep:
-            errtext = "The sampling occasion '%s' differs from\nthe control file directory path '%s'" % (surveyYear, ctlParentDir)
+            errtext = "The sampling occasion '%s' differs from\nthe control file directory path '%s'" % (sampOccasion, ctlParentDir)
             e.call( errtext )
         #----------------------------------------------------------------------------------
         #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
@@ -759,7 +759,7 @@ if __name__ == "__main__":
         #  veg_code table does not exist. So we check for it here
         # 
         #
-        if surveyYear.startswith("[ ERROR ]:"):
+        if sampOccasion.startswith("[ ERROR ]:"):
             errtext = "You need to select a veg code to run from dropdown list"
             e.call( errtext )
             
@@ -809,7 +809,7 @@ if __name__ == "__main__":
 
         # Make a dictionary containing the sites and the 
         #  full path to transect point shapefiles
-        ptDirDict = make_ptShpDict(siteList,ptTransectGDB,surveyYear,ptSuffix)
+        ptDirDict = make_ptShpDict(siteList,ptTransectGDB,sampOccasion,ptSuffix)
         # check for missing transect point shapefiles
         missingPtShapes = []
         for site in siteList:
@@ -829,10 +829,10 @@ if __name__ == "__main__":
         errtext = ""
         if missingPtShapes or missingCtlFiles:        
             if missingPtShapes:
-                errtext += "The following sites are missing transect point shapefiles for %s:\n" % surveyYear
+                errtext += "The following sites are missing transect point shapefiles for %s:\n" % sampOccasion
                 errtext += '\n'.join(missingPtShapes)
             if missingCtlFiles:
-                errtext += "\nThe following sites are missing control files for %s:\n" % surveyYear
+                errtext += "\nThe following sites are missing control files for %s:\n" % sampOccasion
                 errtext += '\n'.join(missingCtlFiles)
             e.call(errtext)
 
@@ -870,10 +870,10 @@ if __name__ == "__main__":
         if not arcpy.Exists( sampPyFC ):
             errtext = "The sample polygons feature class does not exist '%s' " % sampPyFC
             e.call(errtext)
-        pyDirDict, missingSamplePolys = make_pyFCDict(siteList,sampPyFC,surveyYear,pySuffix)
+        pyDirDict, missingSamplePolys = make_pyFCDict(siteList,sampPyFC,sampOccasion,pySuffix)
                 
         if missingSamplePolys:
-            errtext = "The following sites have Z. marina, but are missing sample polygons for %s:\n" % surveyYear
+            errtext = "The following sites have Z. marina, but are missing sample polygons for %s:\n" % sampOccasion
             errtext += '\n'.join(missingSamplePolys)
             e.call(errtext)
 
@@ -897,12 +897,12 @@ if __name__ == "__main__":
             # GDB location of temp files
             gdb_temp_dir_path = os.path.dirname(ptFC)
             # name for Line Feature Class (put in same directory as input points)
-            shape_name = "_%s_%s_transect_line" % (site,surveyYear)
+            shape_name = "_%s_%s_transect_line" % (site,sampOccasion)
             lnFC = os.path.join( gdb_temp_dir_path, shape_name)
             # full path for sample Polygon Feature Class
             pyFC = pyDirDict[site]
             # Output clipped Line Feature Class name
-            shape_name = "_%s_%s_transect_line_clip" % (site,surveyYear)
+            shape_name = "_%s_%s_transect_line_clip" % (site,sampOccasion)
             cliplnFC = os.path.join( gdb_temp_dir_path, shape_name )
             # Control File Name
             ctlFile = "".join((site,ctlSuffix))
@@ -951,7 +951,7 @@ if __name__ == "__main__":
         # Calculate Site Statistics for Vegetation of interest sites
         if siteList_VegCode:
             msg("Calculating site statistics for sites with Veg Code = %s" % selected_veg_code )
-            siteStats_Zm = calc_siteStats(siteList_VegCode,trans_table_fullpath,pyDirDict,selected_veg_code,surveyYear)
+            siteStats_Zm = calc_siteStats(siteList_VegCode,trans_table_fullpath,pyDirDict,selected_veg_code,sampOccasion)
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_Zm,siteCols)

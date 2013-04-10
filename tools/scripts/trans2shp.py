@@ -19,7 +19,7 @@
 # (3) outGDB -- Geodatabase for output point feature classes
 # (4) outCoordSys -- Coordinate system for output shapefiles
 # (5) veg_code -- Table path that points to veg_code for lookups
-# (6) surveyYear -- Survey year for data to be processed
+# (6) sampOccasion -- sites_status tabel samp_occasion field chosen
 
 # Directory Structure Notes --
 # This script is expecting a directory structure that is
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         veg_code_lookup = arcpy.GetParameterAsText(5)
         # Survey Year for data to be processed
         # Parameter Data Type:  String
-        surveyYear = arcpy.GetParameterAsText(6)
+        sampOccasion = arcpy.GetParameterAsText(6)
         
         #----------------------------------------------------------------------------------
         #--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         #  site_status table does not exist. So we check for it here
         # 
         #
-        if surveyYear.startswith("[ ERROR ]:"):
+        if sampOccasion.startswith("[ ERROR ]:"):
             errtext = "You need to select a sampling occasion from dropdown list"
             e.call( errtext )
             
@@ -130,13 +130,13 @@ if __name__ == "__main__":
         sites_status_exists = arcpy.Exists( sites_status_table )
         if sites_status_exists:
             delimited_field = arcpy.AddFieldDelimiters( sites_status_table, 'samp_occasion' )
-            where_clause = delimited_field + " = " + "'%s'" % surveyYear
-            #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % surveyYear )
+            where_clause = delimited_field + " = " + "'%s'" % sampOccasion
+            #rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % sampOccasion )
             # Arc 10.0 cannot used named args in SearchCursor
             rows = arcpy.SearchCursor( sites_status_table, where_clause)
             row = rows.next()
             if not row:
-                errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, surveyYear )
+                errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, sampOccasion )
                 e.call( errtext ) 
         else:
             errtext = "The sites_status table does not exist at path %s" % sites_status_table
@@ -148,9 +148,9 @@ if __name__ == "__main__":
         #  make sure parent dir and samp_occasion match up
         #
         #
-        folder_grep = [ i for i in os.path.split( inParentDir ) if i.find( surveyYear ) >= 0 ]
+        folder_grep = [ i for i in os.path.split( inParentDir ) if i.find( sampOccasion ) >= 0 ]
         if not folder_grep:
-            errtext = "The sampling occasion '%s' differs from\nthe input parent directory path '%s'" % (surveyYear, inParentDir)
+            errtext = "The sampling occasion '%s' differs from\nthe input parent directory path '%s'" % (sampOccasion, inParentDir)
             e.call( errtext )
         #----------------------------------------------------------------------------------
         #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
@@ -176,7 +176,7 @@ if __name__ == "__main__":
             inDir = os.path.join(inParentDir, site)
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
             fullTransFile = os.path.join(inDir, '%s%s' % (site,utils.transFileSuffix))
-            outFC = '%s_%s%s' % (site, surveyYear,utils.ptFCSuffix )
+            outFC = '%s_%s%s' % (site, sampOccasion,utils.ptFCSuffix )
             # Make list of transect files, output directories, output feature class, and site name
             sites_to_process.append([fullTransFile,outGDB,outFC,site])
             # Validate presence of input transect file
