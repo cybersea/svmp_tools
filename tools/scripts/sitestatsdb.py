@@ -268,7 +268,8 @@ def calc_transStats(site,lnFC,trkFlagDict, selected_veg_code):
             # NOTE:  Don't need track type in SQL, because already filtered for that in creating list of tracks
             # Need to form a select statment like "tran_num" = 1
             #selStatement = '''"%s" = %s''' % (utils.trkCol,trk)
-            selStatement = "[tran_num] = %s" % (trk)
+            delimited_field = arcpy.AddFieldDelimiters( lnFC, 'tran_num')
+            selStatement = delimited_field + " = " + "%s" % (trk)
             #msg(selStatement)
             # Create a search cursor for rows that meet the query's criteria
             rows = arcpy.SearchCursor(lnFC,selStatement)
@@ -345,12 +346,6 @@ def calc_transStats(site,lnFC,trkFlagDict, selected_veg_code):
 
                 #----------------  SITE_RESULTS_ID ----------------------------  
                 #
-                #
-                #  Q: do we need to more QC here because we are actually doing a FKey to
-                #  site_results_id in site table? If so we should do a lookup here
-                #  wait until we meet with Allison second week of April to choose
-                #
-                #
                 site_results_id = site + "_" + startDate.strftime( "%Y%m%d" ) + "_" + selected_veg_code
                 
                 #----------------  TRAN_RESULTS_ID ----------------------------
@@ -377,10 +372,9 @@ def calc_transStats(site,lnFC,trkFlagDict, selected_veg_code):
     else:
         errtext = "Site %s has Z. marina, a Sample Polygon, but No transects of Type: %s " % (site,'or'.join(utils.trkType4Stats))
         #
-        #  Q: do we really want to throw an error
-        #  or just tell the people that this site 
-        #  was not processed. Reslve with Allison
-        #  the scond week of April
+        #  No error needs to be thrown here. Just return
+        #  the empty allTrkStats and append knowledge of this
+        #  site to output to a warning
         #
         #e.call(errtext)
 
@@ -587,14 +581,6 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
         ## -- This needs to be the sampling occasion field value, not necessarily year
         sitestat_id = site + "_" + samp_occasion #startDate.strftime( "%Y" )
       
-        #
-        #  Q: Allison and i need to review these column names.
-        #  we also need to talk about class-based modules
-        #  helping with edits in the future
-        #  where are the following column keys calculated:
-        #  zmareaSECol  = se_basalcov for now
-        #  
-        #  
         siteStats = [ site_results_id, site, startDate, selected_veg_code, n, estmean_zmfraction, 
                      sample_area, est_basalcov, se_basalcov,
                      n_mindep, mean_mindep, max_mindep, min_mindep, se_mindep,
@@ -607,7 +593,7 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
 #--------------------------------------------------------------------------
 # Calculate Area of Sample Polygon 
 # Optional parameter to pass in a multiplier to convert 
-# from units in the source shapefile to some other area units
+# from units in the source shapefile to some other area unit
 # Default is to return units from shapefile
 def sampPolyArea(pyFC, areaConvConstant=1):
     # Create a search cursor on the sample polygon
@@ -704,6 +690,9 @@ if __name__ == "__main__":
         # Site and Transect Table Field Names
         siteCols = utils.siteTabCols
         transCols = utils.transTabCols
+        
+        # Variable to hold sites with no SLPR
+        sites_no_slpr = []
 
         #----------------------------------------------------------------------------------
         #--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
@@ -748,9 +737,6 @@ if __name__ == "__main__":
         #
         #
         #  make sure parent dir and samp_occasion match up
-        #
-        #  Q: better QC method might be to put SearchCursor on start_date
-        #  of input field and use that instead
         #
         folder_grep = [ i for i in os.path.split( ctlParentDir ) if i.find( surveyYear ) >= 0 ]
         if not folder_grep:
@@ -848,25 +834,12 @@ if __name__ == "__main__":
             e.call(errtext)
 
         
+        #
         # Loop through all sites and make a list of those without vegetation
         # columns that match the selected_veg_code input
         # the purpose of this code here is to make sure we are only
         # running stats for sites that have valid veg_code columns
         # 
-        #
-        # Q: Currently, we create a list of sites with and without selected_veg_code columns
-        # but we could through and error if needed here. Since we can expect
-        # that some sites *will not* contain the selected_veg_code then we gracefully handle this
-        # and throw them into a list. Check with Allison when we meet the second week of April
-        #
-        # Q: should we be doing a higher-level Search filter here for sites
-        # to process based on site_id and presences of selected_veg_code?
-        # that way we are only running sites with that veg_code column
-        # and it's known before we try to access it with SearchCursor below
-        # not sure how this question fits into expected workflow so 
-        # save this for Allison when we meet the second week of April
-        #
-        #
         for site, featureclass in ptDirDict.items():
             try:
                 field_list = arcpy.ListFields( featureclass )
@@ -887,10 +860,6 @@ if __name__ == "__main__":
         # Make a dictionary containing the sites and the temp feature_layer name
         # this function will also hand back a list of problem polygons
         # that are not found in the target feature class
-        #
-        # Q: since we are creating potentially a lot of temporary feature layers
-        # this workflow might slow things down. However, this is the only
-        # solution that i can come up with at this time. 
         #
         if not arcpy.Exists( sampPyFC ):
             errtext = "The sample polygons feature class does not exist '%s' " % sampPyFC
@@ -960,13 +929,14 @@ if __name__ == "__main__":
 
             # Insert Transect Statistics into annual Transects data table
             msg("Inserting transect statistics into data table")
-            #
-            #
-            #  Q: skips non SLPR trans stuff
-            #
-            #
             if transStats:
                 insert_stats(trans_table_fullpath,transStats,transCols)
+            else:
+                #
+                # add this site to sites_no_slpr to drop a warning
+                # at the end of the script run
+                #
+                sites_no_slpr.append( site )
 
             # Delete the temporary line files:
             arcpy.Delete_management(lnFC)
@@ -979,6 +949,14 @@ if __name__ == "__main__":
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_Zm,siteCols)
+        
+        #
+        # throw a warning if there were sites
+        # that did not have SLPR trktype
+        #
+        if sites_no_slpr:
+            msg = "[ WARNING ]: The following sites in the list of sites to run *did not* have a TrkType code of SLPR and therefore were not run:\n%s"
+            e.call( msg%'\n'.join(sites_no_slpr) )
             
         
     except SystemExit:
