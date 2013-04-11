@@ -49,7 +49,6 @@ class ToolValidator(object):
 	        for row in rows:
 	            values.add( row.getValue( 'veg_code' ) )
 	        sort = sorted( values ) # this converts to list too
-	        sort.reverse()
 	        self.params[6].filter.list = sort
 	        self.params[6].enabled = True
     else:
