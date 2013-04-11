@@ -269,7 +269,7 @@ def calc_transStats(site,lnFC,trkFlagDict, selected_veg_code):
             # NOTE:  Don't need track type in SQL, because already filtered for that in creating list of tracks
             # Need to form a select statment like "tran_num" = 1
             #selStatement = '''"%s" = %s''' % (utils.trkCol,trk)
-            delimited_field = arcpy.AddFieldDelimiters( lnFC, 'tran_num')
+            delimited_field = arcpy.AddFieldDelimiters( lnFC, utils.trkCol)
             selStatement = delimited_field + " = " + "%s" % (trk)
             #msg(selStatement)
             # Create a search cursor for rows that meet the query's criteria
