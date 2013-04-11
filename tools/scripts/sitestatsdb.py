@@ -429,7 +429,8 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
         pyFC = pyDirDict[site]
         # SQL statement for selecting site data
         # Fields are indicated by square brackets because it's a geodatabase
-        selStatement = '[' + siteCol + ']' + ' = ' + '\'' + str(site) + '\''
+        delimited_field = arcpy.AddFieldDelimiters( inTable, siteCol )
+        selStatement =  delimited_field + " = "  + "'%s'" % str(site)
         # Create Search Cursor for Input Transect Data Table
         print inTable, selStatement
         rows = arcpy.SearchCursor(inTable,selStatement)
@@ -948,22 +949,31 @@ if __name__ == "__main__":
             arcpy.Delete_management(lnFC)
             arcpy.Delete_management(cliplnFC)
 
+        #
         # Calculate Site Statistics for Vegetation of interest sites
+        # NOTE: we only want to run calc_siteStats on sites 
+        # that 1) have a TrkType code SLPR ( cause only those were outputed in Transects<Year> table )
+        # and  2) have the selected VegCode
+        # here we subtract anything from the site lists that are in the sites_no_slpr table
+        # 
         if siteList_VegCode:
-            msg("Calculating site statistics for sites with Veg Code = %s" % selected_veg_code )
-            siteStats_Zm = calc_siteStats(siteList_VegCode,trans_table_fullpath,pyDirDict,selected_veg_code,sampOccasion)
+            sites_minus_non_slpr = set(siteList_VegCode).difference( set( sites_no_slpr ) )
+            msg("\n\nCalculating site statistics for sites with Veg Code = %s" % selected_veg_code )
+            siteStats_veg = calc_siteStats(sites_minus_non_slpr,trans_table_fullpath,pyDirDict,selected_veg_code,sampOccasion)
             # Insert site Statistics into annual Sites data table
             msg("Inserting site statistics into data table")
-            insert_stats(site_table_fullpath,siteStats_Zm,siteCols)
+            insert_stats(site_table_fullpath,siteStats_veg,siteCols)
         
         #
         # throw a warning if there were sites
         # that did not have SLPR trktype
         #
         if sites_no_slpr:
-            msg = "[ WARNING ]: The following sites in the list of sites to run *did not* have a TrkType code of SLPR and therefore were not run:\n%s"
-            e.call( msg%'\n'.join(sites_no_slpr) )
-            
+            warningtxt = "[ WARNING ]: The following sites in the list of sites to run *did not* have a TrkType code of SLPR" 
+            warningtxt += " and did not have transect or site statistics calculated:\n%s"
+            msg( "----------------------------------" )
+            msg( warningtxt%'\n'.join(sites_no_slpr) )
+            msg( "----------------------------------" )
         
     except SystemExit:
         pass
