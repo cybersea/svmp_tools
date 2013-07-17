@@ -296,6 +296,7 @@ class TransectDatasource( object ):
                     #  because TryType in output featureclass
                     #  is now a SHORT integer Fkey
                     #  so we override it here
+                    #  --- Do not need this foreign key look up at the moment ----  
                     #
                     # if source_field == 'TrkType':
                         # override value with lookup

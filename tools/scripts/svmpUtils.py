@@ -37,7 +37,7 @@ wgs84Code = '4326' # ArcGIS spatial reference code for Geographic, WGS-84
 
 transFileSuffix = "TD.csv"  # suffix for input transect ASCII file
 
-site_code = 'Site'
+# site_code = 'Site'
 sourceLatCol = 'latitude'  # source ASCII data column name for latitude
 sourceLonCol = 'lon' # source ASCII data column name for longitude 
 sourceDateCol = 'date' # source ASCII data column name for data
@@ -439,17 +439,18 @@ def dm2dd(coordDegMin):
 # Due to a peculiarity with the Cursors in ArcGIS, InsertCursor
 # will only accept a COM Object version of the Spatial Reference
 # Which is only available when doing a describe on a feature class
-
 #
 #
 #  we can also get a spatial reference
-#  by explictly creating it
+#  by explictly creating it (in v.10)
 #  however, important to note
 #  that the two ways we get these
 #  objects result in different SpatialRef objects
 #  arcpy.Describe --> spatial ref geoprocessing obj
 #  arcpy.SpatialReference --> arcobjects.SpatialReference object
 #
+# Looks like this function may be obsolete in v.10.0 since we get a SpatialReference type
+#   instead of a CoordinateSystem from the Tool parameters
 #
 def make_spatRef( arcpy,aDir,coordSys):
     tempName = 'tmp4sr.shp'

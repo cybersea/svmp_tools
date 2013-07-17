@@ -14,10 +14,10 @@
 
 # Parameters:
 # (0) inParentDir -- Parent directory for input files
-# (1) inCoordSys -- Coordinate system for input data
+# (1) inSpatRef -- Spatial Reference for input data
 # (2) siteFile -- Full path of text file containing list of sites
 # (3) outGDB -- Geodatabase for output point feature classes
-# (4) outCoordSys -- Coordinate system for output shapefiles
+# (4) outSpatRef -- Coordinate system for output shapefiles
 # (5) veg_code -- Table path that points to veg_code for lookups
 # (6) sampOccasion -- sites_status tabel samp_occasion field chosen
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         inParentDir = arcpy.GetParameterAsText(0)
         # Input Data Coordinate System.  Default:  GCS_WGS_1984
         # Parameter Data Type: Spatial Reference
-        inCoordSys = arcpy.GetParameter(1)
+        inSpatRef = arcpy.GetParameter(1)
         # siteFile: Full Path of text file containing list of sites to process
         # Parameter Data Type: File
         siteFile = arcpy.GetParameterAsText(2)
@@ -94,7 +94,7 @@ if __name__ == "__main__":
         outGDB = arcpy.GetParameterAsText(3) 
         # Ouput Data Coordinate System.  Default:  Default: NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet
         # Parameter Data Type: Spatial Reference
-        outCoordSys = arcpy.GetParameter(4)
+        outSpatRef = arcpy.GetParameter(4)
         # veg_code_lookup is full path to veg_code table
         # Parameter Data Type: Table
         veg_code_lookup = arcpy.GetParameterAsText(5)
@@ -203,9 +203,9 @@ if __name__ == "__main__":
             fullTransFile,outGDB,outFC,site  = path[0],path[1],path[2],path[3]
             msg("-------- SITE ID: %s --------" % site)
             try:
-                transect_csv = TransectCSV( fullTransFile, inCoordSys, veg_code_lookup )
+                transect_csv = TransectCSV( fullTransFile, inSpatRef, veg_code_lookup )
                 msg("Converting Site: '%s'" % site)              
-                datasource = TransectDatasource( outGDB, outFC, outCoordSys, transect_csv )         
+                datasource = TransectDatasource( outGDB, outFC, outSpatRef, transect_csv )         
                 datasource.write_output()
             except Exception, err:
                 #

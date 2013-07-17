@@ -77,7 +77,7 @@ class TransectCSV( object ):
         self.sourceTrkCol = utils.sourceTrkCol # column to identify a track/transect
         self.trkTypeCol = utils.trkTypeCol  # Column listing type of track
         self.sourceVideoCol = utils.videoCol  # Column for video data quality (0,1)    
-        self.sourceSite_code = utils.site_code # Column for site code e.g. core001
+        self.sourceSite_code = utils.sourceSite_code # Column for site code e.g. core001
         self.depth_obs = utils.depth_obs # Column for depth
         self.depth_interp = utils.depth_interp # Column for interp
         
@@ -181,7 +181,7 @@ class TransectCSV( object ):
             scurse = arcpy.SearchCursor( self.veg_code_table_path  )
             row = scurse.next()
             while row:
-                self.valid_veg_codes.append( row.getValue( 'veg_code' ).lower() )
+                self.valid_veg_codes.append( row.getValue( utils.sitestat_veg_code ).lower() )
                 row = scurse.next()          
             del row, scurse
         
