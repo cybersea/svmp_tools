@@ -18,8 +18,10 @@
 # (2) siteFile -- Full path of text file containing list of sites
 # (3) outGDB -- Geodatabase for output point feature classes
 # (4) outSpatRef -- Coordinate system for output shapefiles
-# (5) veg_code -- Table path that points to veg_code for lookups
-# (6) sampOccasion -- sites_status tabel samp_occasion field chosen
+# (5) veg_code_lookup -- Table that lists all valid veg codes
+# (6) sampOccasion_lookup -- Table that includes sampling occasion field
+# (7) sampOccasion_field -- Sampling occasion field
+# (8) sampOccasion -- Selected value for sampling occasion
 
 # Directory Structure Notes --
 # This script is expecting a directory structure that is
@@ -98,9 +100,17 @@ if __name__ == "__main__":
         # veg_code_lookup is full path to veg_code table
         # Parameter Data Type: Table
         veg_code_lookup = arcpy.GetParameterAsText(5)
-        # Survey Year for data to be processed
+        # sampOccasion_lookup is the table that contains samp_occasion column
+        # Only used to derive sampling occasion list for user to select from in parameters box
+        # Parameter Data Type: Table
+        sampOccasion_lookup = arcpy.GetParameterAsText(6)
+        # sampOccasion_field is the column for sampling occasion (samp_occasion)
+        # Dependent on sampOccasion_lookup table
+        # Paramber Data Type:  Field
+        sampOccasion_field = arcpy.GetParameterAsText(7)
+        # Sampling occasion for data to be processed
         # Parameter Data Type:  String
-        sampOccasion = arcpy.GetParameterAsText(6)
+        sampOccasion = arcpy.GetParameterAsText(8)
         
         #----------------------------------------------------------------------------------
         #--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
