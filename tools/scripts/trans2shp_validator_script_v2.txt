@@ -22,13 +22,13 @@ class ToolValidator(object):
     validation is performed.  This method is called whenever a parameter
     has been changed."""
     #
-    # Get Sampling Occasion Table and Field and
-    #   create Filter list for Sampling Occasion parameter
+    # Get Sampling Occasion Table (#6) and Field (#7) and
+    #   create Filter list for Sampling Occasion parameter (#8)
     #
     if self.params[6].value and self.params[7].value:
       sampocc_tbl = str(self.params[6].value)
       desctbl = arcpy.Describe(self.params[6].value)
-      fieldnames = [f.name for f in desctbl.fields]
+      fieldnames = [f.name for f in desctbl.fields] 
       sampocc_fld = str(self.params[7].value)
       #
       # Sampling Occasion Table and Sampling Occasion Field can
@@ -57,6 +57,18 @@ class ToolValidator(object):
   def updateMessages(self):
     """Modify the messages created by internal validation for each tool
     parameter.  This method is called after internal validation."""
-    if self.params[8].value and self.params[8].value.startswith("[SVMP ERROR]"):
-      self.params[8].setErrorMessage("[SVMP ERROR]: Sampling Occasion field has no entries.  Choose a different field")
+
+    if self.params[8].value:
+      # No values in Sampling Occasion List
+      if self.params[8].value.startswith("[SVMP ERROR]"):
+        self.params[8].setErrorMessage("[SVMP ERROR]: Sampling Occasion field has no entries.  Choose a different field")
+      # Sampling Occasion does not match Input data directory
+      elif self.params[0].value:
+        samp_occ = str(self.params[8].value)
+        indir = str(self.params[0].value)
+        folder_grep = [ i for i in os.path.split( indir ) if i.find( samp_occ ) >= 0 ]
+        if not folder_grep:
+          errtext = "The sampling occasion '%s' differs from\nthe input parent directory path '%s'" % (samp_occ, indir)
+          self.params[8].setWarningMessage(errtext)
+
     return
