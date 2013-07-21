@@ -10,7 +10,6 @@ class ToolValidator(object):
   def __init__(self):
     """Setup arcpy and the list of tool parameters."""
     self.params = arcpy.GetParameterInfo()
-    self.sampoccerr = False
 
   def initializeParameters(self):
     """Refine the properties of a tool's parameters.  This method is
