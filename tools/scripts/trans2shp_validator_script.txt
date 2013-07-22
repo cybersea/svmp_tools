@@ -55,6 +55,7 @@ class ToolValidator(object):
       else:
         self.params[7].value = "[SVMP ERROR]: Table %s has no field %s. Choose a different table." % (tblname,sampocc_fld)
         self.params[7].enabled = False
+      
     return
 
   def updateMessages(self):
@@ -78,5 +79,15 @@ class ToolValidator(object):
         if not folder_grep:
           errtext = "The sampling occasion '%s' differs from\nthe input parent directory path '%s'" % (samp_occ, indir)
           self.params[7].setWarningMessage(errtext)
+
+    if self.params[5].value:
+      tbl = str(self.params[5].value)
+      desctbl = arcpy.Describe(self.params[5].value)
+      tblname = desctbl.baseName
+      fieldnames = [f.name for f in desctbl.fields] 
+      vegcode_fld = 'veg_code'
+      if vegcode_fld not in fieldnames:
+        errtext = "[SVMP ERROR]: Veg Code table has no field veg_code.  Choose a different table."
+        self.params[5].setErrorMessage(errtext)
 
     return
