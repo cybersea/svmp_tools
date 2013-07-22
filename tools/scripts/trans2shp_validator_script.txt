@@ -1,3 +1,8 @@
+# Use this version when there is only a paramater 
+#   for Table for Sampling Occasion
+#  Sampling Occasion field is assumed to be "samp_occasion"
+
+
 import arcpy
 import os
 class ToolValidator(object):
@@ -11,55 +16,67 @@ class ToolValidator(object):
   def initializeParameters(self):
     """Refine the properties of a tool's parameters.  This method is
     called when the tool is opened."""
+    self.params[7].enabled = False
     return
 
   def updateParameters(self):
     """Modify the values and properties of parameters before internal
     validation is performed.  This method is called whenever a parameter
     has been changed."""
-
     #
-    #  samp_occasion ( #6 ) depends on #5
+    # Get Sampling Occasion Table (#6) to create
+    #  Filter list for Sampling Occasion parameter (#8)
     #
-    veg_code_table = str( self.params[5].value )
-    self.gdb = os.path.dirname( veg_code_table  )
-
-    #
-    #  qc that the table sites_status exists
-    #
-    self.sites_status_exists = arcpy.Exists( os.path.join( self.gdb, 'sites_status' ) )
-    if self.sites_status_exists:
-        #
-        # 
-        #  if there is no value set 
-        #  or
-        #  the value is the ERROR value
-        #
-        if not self.params[6].value or self.params[6].value.startswith("[ ERROR ]:"):
-	        #
-	        #  reset
-	        #
-	        self.params[6].value = ""
-	        self.params[6].filter.list = []
-	
-	        values = set()
-	        rows = arcpy.SearchCursor( os.path.join( self.gdb, 'sites_status' ) )
-	        for row in rows:
-	            values.add( row.getValue( 'samp_occasion' ) )
-	        sort = sorted( values ) # this converts to list too
-	        sort.reverse()
-	        #self.params[6].value = sort[0]
-	        self.params[6].filter.list = sort
-	        self.params[6].enabled = True
-    else:
-        #
-        #  update flag
-        #
-        self.params[6].value = "[ ERROR ]: The VegCode geodatabase does not have a table called 'sites_status'"
-        self.params[6].enabled = False
+    if self.params[6].value:
+      sampocc_tbl = str(self.params[6].value)
+      desctbl = arcpy.Describe(self.params[6].value)
+      tblname = desctbl.baseName
+      fieldnames = [f.name for f in desctbl.fields] 
+      sampocc_fld = 'samp_occasion'
+      #
+      # Confirm that field, 'samp_occasion' is in selected table
+      #
+      if sampocc_fld in fieldnames:
+        # Get unique list of entries in samp_occasion field
+        values = set()
+        rows = arcpy.SearchCursor(sampocc_tbl)
+        for row in rows:
+          # Need this check to avoid null data values in list
+          if row.getValue(sampocc_fld):
+            values.add(row.getValue(sampocc_fld))
+        if values:
+          sort = sorted(values)
+          sort.reverse() # so recent years show at top of list
+          self.params[7].filter.list = sort
+          self.params[7].enabled = True
+        else:
+          self.params[7].value = "[SVMP ERROR]: Field %s has no entries. Choose a different table." % (sampocc_fld)
+          self.params[7].enabled = False
+      else:
+        self.params[7].value = "[SVMP ERROR]: Table %s has no field %s. Choose a different table." % (tblname,sampocc_fld)
+        self.params[7].enabled = False
     return
 
   def updateMessages(self):
     """Modify the messages created by internal validation for each tool
     parameter.  This method is called after internal validation."""
+
+    if self.params[7].value:
+      # No values in Sampling Occasion List
+      if self.params[7].value.startswith("[SVMP ERROR]: Field"):
+        errtext = "[SVMP ERROR]: Sampling Occasion field has no entries.  Choose a different table"
+        self.params[7].setErrorMessage(errtext)
+      # Selected Sampling Occasion look-up table has no samp_occasion field
+      elif self.params[7].value.startswith("[SVMP ERROR]: Table"):
+        errtext = "[SVMP ERROR]: Sampling Occasion look-up table has no samp_occasion field.  Choose a different table"
+        self.params[7].setErrorMessage(errtext)
+      # Sampling Occasion does not match Input data directory
+      elif self.params[0].value:
+        samp_occ = str(self.params[7].value)
+        indir = str(self.params[0].value)
+        folder_grep = [ i for i in os.path.split( indir ) if i.find( samp_occ ) >= 0 ]
+        if not folder_grep:
+          errtext = "The sampling occasion '%s' differs from\nthe input parent directory path '%s'" % (samp_occ, indir)
+          self.params[7].setWarningMessage(errtext)
+
     return
