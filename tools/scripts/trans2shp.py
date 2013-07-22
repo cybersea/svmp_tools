@@ -174,7 +174,8 @@ if __name__ == "__main__":
             inDir = os.path.join(inParentDir, site)
             # Input transect file names is unique site ID plus suffix/extension of TD.csv
             fullTransFile = os.path.join(inDir, '%s%s' % (site,utils.transFileSuffix))
-            outFC = '%s_%s%s' % (site, sampOccasion,utils.ptFCSuffix )
+            # Validate table/fc name, incase there are funky characters in input
+            outFC = arcpy.ValidateTableName('%s_%s%s' % (site, sampOccasion,utils.ptFCSuffix ))
             # Make list of transect files, output directories, output feature class, and site name
             sites_to_process.append([fullTransFile,outGDB,outFC,site])
             # Validate presence of input transect file
