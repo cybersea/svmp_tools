@@ -107,52 +107,6 @@ if __name__ == "__main__":
         # Parameter Data Type:  String
         sampOccasion = arcpy.GetParameterAsText(7)
         
-        # This section should all be taken care of in the ToolValidator script now
-        ##----------------------------------------------------------------------------------
-        ##--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
-        ##----------------------------------------------------------------------------------
-        ##
-        ##
-        ##  user can still submit form when [ ERROR ]: text is set
-        ##  in situation where Veg Code table is pointed somewhere where
-        ##  site_status table does not exist. So we check for it here
-        ## 
-        ##
-        #if sampOccasion.startswith("[ ERROR ]:"):
-            #errtext = "You need to select a sampling occasion from dropdown list"
-            #e.call( errtext )
-            
-
-        
-        ##
-        ##
-        ##  keep this here for double extra juicy QC
-        ##  the user can still change the text value 
-        ##  once it's been set so just to make sure, check it
-        ##
-        ##
-        #gdb_lookup = os.path.dirname( veg_code_lookup )
-        #sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
-        #sites_status_exists = arcpy.Exists( sites_status_table )
-        #if sites_status_exists:
-            #delimited_field = arcpy.AddFieldDelimiters( sites_status_table, 'samp_occasion' )
-            #where_clause = delimited_field + " = " + "'%s'" % sampOccasion
-            ##rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % sampOccasion )
-            ## Arc 10.0 cannot used named args in SearchCursor
-            #rows = arcpy.SearchCursor( sites_status_table, where_clause)
-            #row = rows.next()
-            #if not row:
-                #errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, sampOccasion )
-                #e.call( errtext ) 
-        #else:
-            #errtext = "The sites_status table does not exist at path %s" % sites_status_table
-            #e.call( errtext ) 
-            
-                
-
-        #----------------------------------------------------------------------------------
-        #--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
-        #----------------------------------------------------------------------------------
 
         #-------------------------------------------------------------------
         #--- CHECK FOR PRESENCE OF INPUT/OUTPUT DIRECTORIES AND FILES ------
