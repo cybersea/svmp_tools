@@ -11,6 +11,10 @@ class ToolValidator(object):
   def initializeParameters(self):
     """Refine the properties of a tool's parameters.  This method is
     called when the tool is opened."""
+    # Sampling Occasion and Veg Code parameters are disabled
+    # until there is an associated table to derive the filter list
+    self.params[6].enabled = False
+    self.params[8].enabled = False
     return
 
   def updateParameters(self):
@@ -18,95 +22,114 @@ class ToolValidator(object):
     validation is performed.  This method is called whenever a parameter
     has been changed."""
 
-	#---------------------------------------
-	#------- VEG CODE ----------------------
-	#---------------------------------------
     #
-    #  veg_code ( #6 ) depends on #1
+    # -------- SAMPLING OCCASION ----------------
+    # Get Sampling Occasion Table (#5) to create
+    #  Filter list for Sampling Occasion parameter (#6)
     #
-    samp_polygons = str( self.params[1].value )
-    gdb = os.path.dirname( samp_polygons )
-    #
-    #  qc that the table sites_status exists
-    #
-    self.veg_code_exists = arcpy.Exists( os.path.join(gdb, 'veg_codes' ) )
-    if self.veg_code_exists:
-        #
-        # 
-        #  if there is no value set 
-        #  or
-        #  the value is the ERROR value
-        #
-        if not self.params[6].value or self.params[6].value.startswith("[ ERROR ]:"):
-	        #
-	        #  reset
-	        #
-	        self.params[6].value = ""
-	        self.params[6].filter.list = []
-	
-	        values = set()
-	        rows = arcpy.SearchCursor( os.path.join(gdb, 'veg_codes' ) )
-	        for row in rows:
-	            values.add( row.getValue( 'veg_code' ) )
-	        sort = sorted( values ) # this converts to list too
-	        self.params[6].filter.list = sort
-	        self.params[6].enabled = True
-    else:
-        #
-        #  update flag
-        #
-        self.params[6].value = "[ ERROR ]: The Sample Polygon geodatabase does not have a table called 'veg_codes'"
+    if self.params[5].value:
+      sampocc_tbl = str(self.params[5].value)
+      desctbl = arcpy.Describe(self.params[5].value)
+      tblname = desctbl.baseName
+      fieldnames = [f.name for f in desctbl.fields] 
+      sampocc_fld = 'samp_occasion'
+      #
+      # Confirm that field, 'samp_occasion' is in selected table
+      #
+      if sampocc_fld in fieldnames:
+        # Get unique list of entries in samp_occasion field
+        values = set()
+        rows = arcpy.SearchCursor(sampocc_tbl)
+        for row in rows:
+          # Need this check to avoid null data values in list
+          if row.getValue(sampocc_fld):
+            values.add(row.getValue(sampocc_fld))
+        if values:
+          sort = sorted(values)
+          sort.reverse() # so recent years show at top of list
+          self.params[6].filter.list = sort
+          self.params[6].enabled = True
+        else:
+          self.params[6].value = "[SVMP ERROR]: Field %s has no entries. Choose a different table." % (sampocc_fld)
+          self.params[6].enabled = False
+      else:
+        self.params[6].value = "[SVMP ERROR]: Table %s has no field %s. Choose a different table." % (tblname,sampocc_fld)
         self.params[6].enabled = False
-	#---------------------------------------
-	#------- END VEG CODE ------------------
-	#---------------------------------------
-	
-	#---------------------------------------
-	#------- SAMP OCCASSION ----------------
-	#---------------------------------------
+
     #
-    #  samp_occasion ( #5 ) depends on #1
+    # -------- VEGETATION CODE ----------------
+    # Get Vegetation Code Table (#7) to create
+    #  Filter list for Vegetation Code parameter (#8)
     #
-    samp_polygons = str( self.params[1].value )
-    gdb = os.path.dirname( samp_polygons )
-    #
-    #  qc that the table sites_status exists
-    #
-    self.sites_status_exists = arcpy.Exists( os.path.join(gdb, 'sites_status' ) )
-    if self.sites_status_exists:
-        #
-        # 
-        #  if there is no value set 
-        #  or
-        #  the value is the ERROR value
-        #
-        if not self.params[5].value or self.params[5].value.startswith("[ ERROR ]:"):
-	        #
-	        #  reset
-	        #
-	        self.params[5].value = ""
-	        self.params[5].filter.list = []
-	
-	        values = set()
-	        rows = arcpy.SearchCursor( os.path.join(gdb, 'sites_status' ) )
-	        for row in rows:
-	            values.add( row.getValue( 'samp_occasion' ) )
-	        sort = sorted( values ) # this converts to list too
-	        sort.reverse()
-	        self.params[5].filter.list = sort
-	        self.params[5].enabled = True
-    else:
-        #
-        #  update flag
-        #
-        self.params[5].value = "[ ERROR ]: The Sample Polygon geodatabase does not have a table called 'sites_status'"
-        self.params[5].enabled = False
-	#---------------------------------------
-	#------- END SAMP OCCASSION ------------
-	#---------------------------------------
+    if self.params[7].value:
+      vegcode_tbl = str(self.params[7].value)
+      desctbl = arcpy.Describe(self.params[7].value)
+      tblname = desctbl.baseName
+      fieldnames = [f.name for f in desctbl.fields] 
+      vegcode_fld = 'veg_code'
+      #
+      # Confirm that field, 'veg_code' is in selected table
+      #
+      if vegcode_fld in fieldnames:
+        # Get unique list of entries in samp_occasion field
+        values = set()
+        rows = arcpy.SearchCursor(vegcode_tbl)
+        for row in rows:
+          # Need this check to avoid null data values in list
+          if row.getValue(vegcode_fld):
+            values.add(row.getValue(vegcode_fld))
+        if values:
+          sort = sorted(values)
+          self.params[8].filter.list = sort
+          self.params[8].enabled = True
+        else:
+          self.params[8].value = "[SVMP ERROR]: Field %s has no entries. Choose a different table." % (vegcode_fld)
+          self.params[8].enabled = False
+      else:
+        self.params[8].value = "[SVMP ERROR]: Table %s has no field %s. Choose a different table." % (tblname,vegcode_fld)
+        self.params[8].enabled = False
+
     return
 
   def updateMessages(self):
     """Modify the messages created by internal validation for each tool
     parameter.  This method is called after internal validation."""
+
+    #
+    # -------- SAMPLING OCCASION ----------------
+    #
+    if self.params[5].value and self.params[6].value:
+      # No values in Sampling Occasion List
+      if self.params[6].value.startswith("[SVMP ERROR]: Field"):
+        errtext = "[SVMP ERROR]: Sampling Occasion field has no entries.  Choose a different table"
+        self.params[5].setErrorMessage(errtext)
+        self.params[6].value = ""
+      # Selected Sampling Occasion look-up table has no samp_occasion field
+      elif self.params[6].value.startswith("[SVMP ERROR]: Table"):
+        errtext = "[SVMP ERROR]: Sampling Occasion look-up table has no samp_occasion field.  Choose a different table"
+        self.params[5].setErrorMessage(errtext)
+        self.params[6].value = ""
+      # Sampling Occasion does not match Input data directory
+      elif self.params[2].value:
+        samp_occ = str(self.params[6].value)
+        indir = str(self.params[2].value)
+        folder_grep = [ i for i in os.path.split( indir ) if i.find( samp_occ ) >= 0 ]
+        if not folder_grep:
+          errtext = "The sampling occasion '%s' differs from\nthe input control file directory path '%s'" % (samp_occ, indir)
+          self.params[6].setWarningMessage(errtext)
+    #
+    # -------- VEGETATION CODE ----------------
+    #
+    if self.params[7].value and self.params[8].value:
+      # No values in Vegetation Type List
+      if self.params[8].value.startswith("[SVMP ERROR]: Field"):
+        errtext = "[SVMP ERROR]: Vegetation Type field has no entries.  Choose a different table"
+        self.params[7].setErrorMessage(errtext)
+        self.params[7].value = ""
+      # Selected Sampling Occasion look-up table has no samp_occasion field
+      elif self.params[8].value.startswith("[SVMP ERROR]: Table"):
+        errtext = "[SVMP ERROR]: Vegetation Code look-up table has no veg_code field.  Choose a different table"
+        self.params[7].setErrorMessage(errtext)
+        self.params[8].value = ""
+
     return
