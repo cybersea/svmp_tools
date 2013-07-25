@@ -25,7 +25,7 @@ class ToolValidator(object):
     has been changed."""
     #
     # Get Sampling Occasion Table (#6) to create
-    #  Filter list for Sampling Occasion parameter (#8)
+    #  Filter list for Sampling Occasion parameter (#7)
     #
     if self.params[6].value:
       sampocc_tbl = str(self.params[6].value)
