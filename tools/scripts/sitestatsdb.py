@@ -2,11 +2,11 @@
 # Tool Name:  SiteStatisticsDatabase
 # Tool Label: Site Statistics Database
 # Source Name: sitestatsdb.py
-# Version: ArcGIS 9.2
-# Author: Allison Bailey, Sound GIS
+# Version: ArcGIS 10.0
+# Author: Allison Bailey, Sound GIS and Greg Corradini Chop Shop Geospatial
 # For: Washington DNR, Submerged Vegetation Monitoring Program (SVMP)
-# Date: April 2007, modified June 2007, February 2008, December 2008
-# Requires: Python 2.4
+# Date: April 2007, modified June 2007, Feb 2008, Dec 2008, March-July 2013
+# Requires: Python 2.6+
 #
 # This script calculates summary statistics for
 # all transects and all sites for a specified year.
@@ -16,13 +16,15 @@
 # a full set of data
 
 # Parameters:
-# (1) ptTransectGDB -- Geodatabase for site point feature classes
-# (2) sampPyFC -- Sample Polygon Feature Class
-# (3) ctlParentDir -- Parent directory for site control files
+# (0) ptTransectGDB -- Geodatabase for site point feature classes
+# (1) sampPyFC -- Sample Polygon Feature Class
+# (2) ctlParentDir -- Parent directory for site control files
 # (3) siteFile -- Full path of text file containing list of all sites for year
 # (4) siteDB -- Full path to database to store site and transect statistic tables
-# (5) sampOccasion -- sites_status table samp_occasion field chosen
-# (6) veg_code -- The Veg Code to run statistics on
+# (5) sampOccasion_lookup -- Table that includes sampling occasion field
+# (6) sampOccasion -- Selected value for sampling occasion
+# (7) veg_code_lookup -- Table that lists all valid veg codes
+# (8) veg_code -- The Veg Code to run statistics on
 
 # This script is expecting a directory structure that is
 #   specific to Washington DNR's SVMP it looks as follows:
@@ -660,10 +662,10 @@ if __name__ == "__main__":
         siteDB = arcpy.GetParameterAsText(4)   
         # Survey Year for data to be processed
         # Parameter Data Type: String
-        sampOccasion = arcpy.GetParameterAsText(5)
+        sampOccasion = arcpy.GetParameterAsText(6)
         # Veg Code
         # Parameter Data Type: STring
-        selected_veg_code = arcpy.GetParameterAsText(6)
+        selected_veg_code = arcpy.GetParameterAsText(8)
         
         # Suffix for Transect Point Shapefiles
         ptSuffix = utils.ptFCSuffix  
