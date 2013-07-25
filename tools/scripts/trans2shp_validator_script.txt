@@ -62,15 +62,17 @@ class ToolValidator(object):
     """Modify the messages created by internal validation for each tool
     parameter.  This method is called after internal validation."""
 
-    if self.params[7].value:
+    if self.params[6].value and self.params[7].value:
       # No values in Sampling Occasion List
       if self.params[7].value.startswith("[SVMP ERROR]: Field"):
         errtext = "[SVMP ERROR]: Sampling Occasion field has no entries.  Choose a different table"
-        self.params[7].setErrorMessage(errtext)
+        self.params[6].setErrorMessage(errtext)
+        self.params[7].value = ""
       # Selected Sampling Occasion look-up table has no samp_occasion field
       elif self.params[7].value.startswith("[SVMP ERROR]: Table"):
         errtext = "[SVMP ERROR]: Sampling Occasion look-up table has no samp_occasion field.  Choose a different table"
-        self.params[7].setErrorMessage(errtext)
+        self.params[6].setErrorMessage(errtext)
+        self.params[7].value = ""
       # Sampling Occasion does not match Input data directory
       elif self.params[0].value:
         samp_occ = str(self.params[7].value)
