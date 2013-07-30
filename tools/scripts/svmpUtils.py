@@ -86,10 +86,10 @@ site_code = 'site_code'
 trkCol = 'tran_num' # to match final database column name, changed from trk to tran_num
 shpDepCol = 'depth_interp' # Interpolated Biosonics Depth column
 shpDateCol = 'date_samp'  # Column with date of survey       
-time24hr = 'Time24hr'
-bsdepth = 'depth_obs'
+time24hrCol = 'Time24hr'
+bsdepthCol = 'depth_obs'
 videoCol = 'video'  # Column for video data quality (0,1)
-trktype = 'TrkType' # Column listing type of track
+trktypeCol = 'TrkType' # Column listing type of track
 
 #
 #  when transect_csv does lookups to create
@@ -106,11 +106,11 @@ trkPtShpCols = [
             [ site_code, 'TEXT', '#', '#', '10'],
             [ trkCol,'LONG','#','#','#' ],
             [ shpDateCol,'DATE','#','#','#' ],
-            [ time24hr,'TEXT','#','#','11' ],
-            [ bsdepth,'DOUBLE','9','2','#' ],
+            [ time24hrCol,'TEXT','#','#','11' ],
+            [ bsdepthCol,'DOUBLE','9','2','#' ],
             [ shpDepCol,'DOUBLE','9','2','#' ],
             [ videoCol,'SHORT','#','#','#' ],
-            [ trktype,'TEXT','#','#','10' ],
+            [ trktypeCol,'TEXT','#','#','10' ],
             [],
             []
             
@@ -422,6 +422,24 @@ def convert_DateTime(survDate,survTime):
     time24hr = ':'.join([h,m,s])
     date_time = ' '.join([survDate,time24hr])
     return (date_time, time24hr) 
+  
+# Convert 12-hr time to 24-hr time
+# Assumes Date time in hh:mm:ss AM/PM format
+def convert_Time(survTime):
+    # Convert to 24-hour time
+    [hms,ampm] = survTime.split(' ')
+    [h,m,s] = hms.split(':')
+    if ampm == 'PM' and int(h) < 12:
+    # Add 12 hours to get 24 hour time
+        h = str(int(h) + 12)
+    if int(h) < 10 and len(h) < 2:
+    # Add leading zero to hour if missing
+        h = '0' + h
+    # if it's in the 12 A.M. hour, need to change to 00
+    if ampm == 'AM' and int(h) == 12:
+        h = '00'
+    time24hr = ':'.join([h,m,s])
+    return time24hr
 #--------------------------------------------------------------------------
 #--------------------------------------------------------------------------
 # Convert Degree/minute format to Decimal Degrees

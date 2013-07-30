@@ -90,10 +90,10 @@ class TransectDatasource( object ):
         self.trkCol = utils.trkCol # to match final database column name, changed from trk to tran_num  
         self.shpDepCol = utils.shpDepCol # Interpolated Biosonics Depth column
         self.shpDateCol = utils.shpDateCol # Column with date of survey       
-        self.time24hr = utils.time24hr
-        self.bsdepth = utils.bsdepth
+        self.time24hrCol = utils.time24hrCol
+        self.bsdepthCol = utils.bsdepthCol
         self.videoCol = utils.videoCol # Column for video data quality (0,1)
-        self.trktype = utils.trktype
+        self.trktypeCol = utils.trktypeCol
         
         #
         #
@@ -301,6 +301,9 @@ class TransectDatasource( object ):
                     # if source_field == 'TrkType':
                         # override value with lookup
                         # value = self._get_fkey( self.trktype_path, "trktype_code", value )
+                    if target_field == self.time24hrCol:
+                        time24hr = utils.convert_Time(value)
+                        value = time24hr
                         
                     # Convert null values to a nonsense number for dbf file
                     if not value:
