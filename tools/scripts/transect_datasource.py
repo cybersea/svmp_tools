@@ -301,10 +301,17 @@ class TransectDatasource( object ):
                     # if source_field == 'TrkType':
                         # override value with lookup
                         # value = self._get_fkey( self.trktype_path, "trktype_code", value )
-                    if target_field == self.time24hrCol:
-                        time24hr = utils.convert_Time(value)
-                        value = time24hr
                         
+                    # Convert 12-hour time to 24-hour time
+                    if target_field == self.time24hrCol:
+                        try:
+                            time24hr = utils.convert_Time(value)
+                            value = time24hr
+                        except Exception:
+                            errtext = "Error converting source time, %s , to 24-hr format. CSV row: %s" % ( value, csv_row )
+                            errtext += "\nExpected input time format is hh:mm:ss AM/PM"
+                            raise SetValueError( errtext )
+
                     # Convert null values to a nonsense number for dbf file
                     if not value:
                         value = utils.nullDep
@@ -313,7 +320,7 @@ class TransectDatasource( object ):
                     try:
                         feat.setValue( target_field, value )
                     except Exception:
-                        errtext = "Error in input CSV file, row: %s and column: %s" % ( csv_row, target_field )
+                        errtext = "Error in input CSV file, row: %s and column: %s" % ( csv_row, source_field )
                         raise SetValueError( errtext )
                         
                 try:
