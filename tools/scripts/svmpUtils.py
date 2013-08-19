@@ -155,10 +155,10 @@ templateTransects = 'transects' #'transect' # Table for attributes about each tr
 trkType4Stats = ['SLPR']
 
 # Some individual column names are needed for processing
-site_results_id = 'site_results_id' # NOTE:NEW
-sitestat_veg_code = 'veg_code' #NOTE:NEW
-site_stat_id = 'sitestat_id' #NOTE:NEW
-tran_results_id = 'tran_results_id' #NOTE:NEW
+siteresultsidCol = 'site_results_id' # NOTE:NEW
+vegcodeCol = 'veg_code' #NOTE:NEW
+sitestatidCol = 'sitestat_id' #NOTE:NEW
+tranresultsidCol = 'tran_results_id' #NOTE:NEW
 siteCol = 'site_code'
 samplenCol = 'tran_len_ft'
 zmlenCol = 'veg_len_ft'
@@ -204,10 +204,10 @@ approx_lonCol = 'approx_lon'
 # If the table column names are changed, this list must be changed too.
 # Site and Transect Table Field Names
 siteTabCols = [
-site_results_id,
+siteresultsidCol,
 siteCol,
 samplestartdateCol,
-sitestat_veg_code,
+vegcodeCol,
 num_transectsCol,
 estmean_zmfractionCol,
 samp_areaCol,
@@ -223,15 +223,15 @@ mean_maxzmdepCol,
 max_maxzmdepCol,
 min_maxzmdepCol,
 se_maxzmdepCol,
-site_stat_id
+sitestatidCol
 ]
 
 transTabCols = [
-tran_results_id,
+tranresultsidCol,
 siteCol,
 samplestartdateCol,
 trandateCol,
-sitestat_veg_code,
+vegcodeCol,
 trkCol,
 samplenCol,
 zmlenCol,
@@ -242,7 +242,7 @@ zmmindepCol,
 trkmindepCol,
 maxdepflagCol,
 mindepflagCol,
-site_results_id
+siteresultsidCol
 ]
 
 #-------------- VARIABLES Related to Soundwide Area Data Tables ----------------#

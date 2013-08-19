@@ -9,7 +9,7 @@
 # Requires: Python 2.6+
 #
 # This script calculates summary statistics for
-# all transects and all sites for a specified year.
+# all transects and all sites for a specified sampling occasion.
 # These statistics are stored in two data tables
 # within an existing MS Access personal geodatabase
 # If the tables exist, they will be repopulated with
@@ -26,13 +26,8 @@
 # (7) veg_code_lookup -- Table that lists all valid veg codes
 # (8) veg_code -- The Veg Code to run statistics on
 
-# This script is expecting a directory structure that is
-#   specific to Washington DNR's SVMP it looks as follows:
-# Sample input point data directory:
-# (all transect shapefiles stored in one directory, named by year)
-# \\Snarf\bss3\work\svmp\fieldwork\site_folders\core006\video_transect_data
-# Sample input sample polygon directory
-# \\Snarf\bss3\work\svmp\fieldwork\site_folders\core006\sample_polygons
+# This script is expecting a directory structure and feature class naming convention
+#   specific to Washington DNR's SVMP 
 # Sample input control file directory
 #  J:\AQR\DATA\NEARSHOR\VegMon\2006_Field_Season\Site Folders\core006
 #--------------------------------------------------------------------------
@@ -107,7 +102,7 @@ def make_pyFCDict(siteList,sample_poly_path,sampOcc,fcSuffix):
         #
         #msg( "Creating temp feature layer '%s'" % fl_output_name )
         # Arc 10.0 cannot use named args
-        delimited_field = arcpy.AddFieldDelimiters( sample_poly_fc, 'sitestat_id' )
+        delimited_field = arcpy.AddFieldDelimiters( sample_poly_fc, utils.sitestatidCol )
         where_clause= delimited_field + " = " + "'%s'" % (site_stat_poly_id)
         arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause )
         if arcpy.Exists( fl_output_name ):

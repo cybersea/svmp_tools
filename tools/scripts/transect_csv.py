@@ -181,7 +181,7 @@ class TransectCSV( object ):
             scurse = arcpy.SearchCursor( self.veg_code_table_path  )
             row = scurse.next()
             while row:
-                self.valid_veg_codes.append( row.getValue( utils.sitestat_veg_code ).lower() )
+                self.valid_veg_codes.append( row.getValue( utils.vegcodeCol ).lower() )
                 row = scurse.next()          
             del row, scurse
         
