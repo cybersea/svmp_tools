@@ -699,119 +699,15 @@ if __name__ == "__main__":
         template_transects_fullpath = os.path.join(siteDB,template_transects)
         # msg("Template Transects" + template_transects_fullpath)
 
-        # Output Statistics Table Names -- use sampling occasion as suffix 
-        site_table = template_sites + sampOccasion # sampOccasion + template_sites
+        # Output Statistics Table Names -- use sampling occasion and vegetation code as suffix 
+        site_table = template_sites + sampOccasion + "_" + selected_veg_code
         site_table_fullpath = os.path.join(siteDB,site_table)
-        trans_table = template_transects + sampOccasion # sampOccasion + template_transects
+        trans_table = template_transects + sampOccasion + "_" + selected_veg_code # sampOccasion + template_transects
         trans_table_fullpath = os.path.join(siteDB,trans_table)
 
         # Site and Transect Table Field Names
         siteCols = utils.siteTabCols
         transCols = utils.transTabCols
-        
-        # Variable to hold sites with no SLPR
-        sites_no_slpr = []
-
-        #  All of this validation should be handled in the Toolbox Validator script
-        ##----------------------------------------------------------------------------------
-        ##--- CHECK TO MAKE SURE SAMP OCCASION VALUE IS SITE_STATUS.SAMP_OCCASION ----------
-        ##----------------------------------------------------------------------------------
-        ##
-        ##
-        ##  user can still submit form when [ ERROR ]: text is set
-        ##  in situation where Veg Code table is pointed somewhere where
-        ##  site_status table does not exist. So we check for it here
-        ## 
-        ##
-        #if sampOccasion.startswith("[ ERROR ]:"):
-            #errtext = "You need to select a samp occasion year from dropdown list"
-            #e.call( errtext )
-            
-
-        
-        ##
-        ##
-        ##  keep this here for double extra juicy QC
-        ##  the user can still change the text value 
-        ##  once it's been set so just to make sure, check it
-        ##
-        ##
-        #gdb_lookup = os.path.dirname( sampPyFC )
-        #sites_status_table = os.path.join( gdb_lookup, 'sites_status' )
-        #sites_status_exists = arcpy.Exists( sites_status_table )
-        #if sites_status_exists:
-            #delimited_field = arcpy.AddFieldDelimiters( sites_status_table, 'samp_occasion' )
-            #where_clause =  delimited_field + " = " + "'%s'" % sampOccasion
-            ##rows = arcpy.SearchCursor( sites_status_table, where_clause="[samp_occasion] = '%s'" % sampOccasion )
-            ## Arc 10.0 cannot used named args in SearchCursor
-            #rows = arcpy.SearchCursor( sites_status_table, where_clause)
-            #row = rows.next()
-            #if not row:
-                #errtext = "The table %s has no samp_occasion = '%s'\n...Please enter a new sampling occasion" % ( sites_status_table, sampOccasion )
-                #e.call( errtext ) 
-        #else:
-            #errtext = "The sites_status table does not exist at path %s" % sites_status_table
-            #e.call( errtext ) 
-            
-                
-        ##
-        ##
-        ##  make sure parent dir and samp_occasion match up
-        ##
-        #folder_grep = [ i for i in os.path.split( ctlParentDir ) if i.find( sampOccasion ) >= 0 ]
-        #if not folder_grep:
-            #errtext = "The sampling occasion '%s' differs from\nthe control file directory path '%s'" % (sampOccasion, ctlParentDir)
-            #e.call( errtext )
-        ##----------------------------------------------------------------------------------
-        ##--- END MAKE SURE SAMP OCCASION VALUE IS IN SITE_STATUS.SAMP_OCCASION ------------
-        ##----------------------------------------------------------------------------------
-        
-        
-        ##----------------------------------------------------------------------------------
-        ##--- MAKE SURE SELECTED VEG CODE VALUE IS IN VEG_CODES.VEG_CODE -------------------
-        ##----------------------------------------------------------------------------------
-        ##
-        ##
-        ##  user can still submit form when [ ERROR ]: text is set
-        ##  in situation where Veg Code table is pointed somewhere where
-        ##  veg_code table does not exist. So we check for it here
-        ## 
-        ##
-        #if sampOccasion.startswith("[ ERROR ]:"):
-            #errtext = "You need to select a veg code to run from dropdown list"
-            #e.call( errtext )
-            
-
-        
-        ##
-        ##
-        ##  keep this here for double extra juicy QC
-        ##  the user can still change the text value 
-        ##  once it's been set so just to make sure, check it
-        ##
-        ##
-        #gdb_lookup = os.path.dirname( sampPyFC )
-        #veg_codes_table = os.path.join( gdb_lookup, 'veg_codes' )
-        #veg_codes_exists = arcpy.Exists( veg_codes_table )
-        #if veg_codes_exists:
-            ## Arc 10.0 cannot used named args in SearchCursor
-            #delimited_field = arcpy.AddFieldDelimiters( veg_codes_table, 'veg_code' )
-            #where_clause = delimited_field + " = " +  "'%s'" % selected_veg_code
-            #rows = arcpy.SearchCursor( veg_codes_table, where_clause )
-            #row = rows.next()
-            #if not row:
-                #errtext = "The table %s has no veg_code = '%s'\...Please enter a new veg code" % ( veg_codes_table, selected_veg_code )
-                #e.call( errtext ) 
-        #else:
-            #errtext = "The veg_codes table does not exist at path %s" % veg_codes_table
-            #e.call( errtext ) 
-            
-        ##----------------------------------------------------------------------------------
-        ##--- END MAKE SURE SELECTED VEG CODE VALUE IS IN VEG_CODES.VEG_CODE ---------------
-        ##----------------------------------------------------------------------------------
-        #  END of validation handled in the Toolbox Validator script
-
-        
 
         # Get site list 
         siteList = utils.make_siteList(siteFile)
@@ -854,21 +750,25 @@ if __name__ == "__main__":
         # check for transect feature classes without selected_veg_code column
         missingVegCol = []
         for site, featureclass in ptDirDict.items():
-            field_list = arcpy.ListFields( featureclass )
-            field_name_list = [ i.name for i in field_list ]
-            if selected_veg_code not in field_name_list:
-                missingVegCol.append( site )
+            if missingPtShapes and site not in missingPtShapes:
+                field_list = arcpy.ListFields( featureclass )
+                field_name_list = [ i.name for i in field_list ]
+                if selected_veg_code not in field_name_list:
+                    missingVegCol.append( site )
 
         errtext = ""
         if missingPtShapes or missingCtlFiles or missingVegCol:        
             if missingPtShapes:
+                missingPtShapes.sort()
                 errtext += "The following sites are missing transect point feature classes for %s:\n" % sampOccasion
                 errtext += '\n'.join(missingPtShapes)
             if missingCtlFiles:
+                missingCtlFiles.sort()
                 errtext += "\nThe following sites are missing control files for %s:\n" % sampOccasion
                 errtext += '\n'.join(missingCtlFiles)
             if missingVegCol:
-                errtext += "\nThe following sites are missing the vegetation column, %s, for %s\n" % (selected_veg_code,sampOccasion)
+                missingVegCol.sort()
+                errtext += "\nThe following sites are missing the selected vegetation column, %s, for %s\n" % (selected_veg_code,sampOccasion)
                 errtext += '\n'.join(missingVegCol)
             e.call(errtext)
         #------------------------------------------------------------------------
