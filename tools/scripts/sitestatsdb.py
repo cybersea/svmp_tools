@@ -85,6 +85,7 @@ def make_ptShpDict(siteList,transectGDB,yr,shpSuffix):
 def make_pyFCDict(siteList,sample_poly_path,sampOcc,fcSuffix):
     siteFCDict = {}
     missingPolygons = []
+    #msg("In make_pyFCDict")
     for site in siteList:
         site_stat_poly_id = site + "_" + sampOcc
         fl_output_name = site + "_" + sampOcc + fcSuffix
@@ -104,6 +105,7 @@ def make_pyFCDict(siteList,sample_poly_path,sampOcc,fcSuffix):
         # Arc 10.0 cannot use named args
         delimited_field = arcpy.AddFieldDelimiters( sample_poly_fc, utils.sitestatidCol )
         where_clause= delimited_field + " = " + "'%s'" % (site_stat_poly_id)
+        #msg(where_clause)
         arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause )
         if arcpy.Exists( fl_output_name ):
             siteFCDict[site] = fl_output_name
@@ -399,7 +401,7 @@ def insert_stats(table,data,cols):
     del cur  # Remove the cursor
 #--------------------------------------------------------------------------    
 #--------------------------------------------------------------------------
-# Calculate statistics for sites with Zostera marina, based on transect table
+# Calculate statistics for sites with selected vegetation, based on transect table
 def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
     # Empty List to Store output data for all sites
     allSiteStats = []
@@ -711,7 +713,7 @@ if __name__ == "__main__":
 
         # Get site list 
         siteList = utils.make_siteList(siteFile)
-        msg("List of sites to calculate statistics:")
+        msg("List of %s sites to calculate statistics:" % ( len(siteList) ))
         for site in siteList:
             msg(site)
 
@@ -731,13 +733,21 @@ if __name__ == "__main__":
         #  Multi-Site Validation for missing 
         #  Transect Point, Control Files, or veg_code columns
         #------------------------------------------------------------------------
-        # check for missing transect point shapefiles
+        # check for missing transect point shapefiles 
+        #  if transect point feature class exists, check for the veg_code column
         missingPtShapes = []
+        missingVegCol = []
         for site in siteList:
             ptFeatureClass = ptDirDict.get(site)
             if not arcpy.Exists( ptFeatureClass ):
                 # add to list of sites with missing transect shapefiles
                 missingPtShapes.append(site)
+            else:
+                field_list = arcpy.ListFields( ptFeatureClass )
+                field_name_list = [ i.name for i in field_list ]
+                if selected_veg_code not in field_name_list:
+                    missingVegCol.append( site )
+                    
         # Check for missing control files
         missingCtlFiles = []
         for site in siteList:
@@ -747,28 +757,20 @@ if __name__ == "__main__":
             if not os.path.exists(ctlFileFull):
                 # add to list of sites with missing control files
                 missingCtlFiles.append(site)
-        # check for transect feature classes without selected_veg_code column
-        missingVegCol = []
-        for site, featureclass in ptDirDict.items():
-            if missingPtShapes and site not in missingPtShapes:
-                field_list = arcpy.ListFields( featureclass )
-                field_name_list = [ i.name for i in field_list ]
-                if selected_veg_code not in field_name_list:
-                    missingVegCol.append( site )
 
         errtext = ""
         if missingPtShapes or missingCtlFiles or missingVegCol:        
             if missingPtShapes:
                 missingPtShapes.sort()
-                errtext += "The following sites are missing transect point feature classes for %s:\n" % sampOccasion
+                errtext += "The following %s sites are missing transect point feature classes for %s:\n" % ( len(missingPtShapes), sampOccasion )
                 errtext += '\n'.join(missingPtShapes)
             if missingCtlFiles:
                 missingCtlFiles.sort()
-                errtext += "\nThe following sites are missing control files for %s:\n" % sampOccasion
+                errtext += "\nThe following %s sites are missing control files for %s:\n" % ( len(missingCtlFiles), sampOccasion )
                 errtext += '\n'.join(missingCtlFiles)
             if missingVegCol:
                 missingVegCol.sort()
-                errtext += "\nThe following sites are missing the selected vegetation column, %s, for %s\n" % (selected_veg_code,sampOccasion)
+                errtext += "\nThe following %s sites are missing the selected vegetation column, %s, for %s\n" % (len(missingVegCol),selected_veg_code,sampOccasion)
                 errtext += '\n'.join(missingVegCol)
             e.call(errtext)
         #------------------------------------------------------------------------
@@ -799,8 +801,8 @@ if __name__ == "__main__":
                 
         siteList_Veg.sort()
         siteList_NoVeg.sort()        
-        msg("Sites with %s:\n" % ( selected_veg_code ) +  '\n'.join(siteList_Veg))
-        msg("Sites without %s:\n" % (selected_veg_code) + '\n'.join(siteList_NoVeg))
+        msg("%s sites with %s:\n" % ( len(siteList_Veg), selected_veg_code ) +  '\n'.join(siteList_Veg))
+        msg("%s sites without %s:\n" % ( len(siteList_NoVeg), selected_veg_code) + '\n'.join(siteList_NoVeg))
 
         #
         # Make a dictionary containing the sites (w/veg present) and the temp feature_layer name
@@ -808,9 +810,10 @@ if __name__ == "__main__":
         # that are not found in the target feature class 
         #
         pyDirDict, missingSamplePolys = make_pyFCDict(siteList_Veg,sampPyFC,sampOccasion,pySuffix)
+        print pyDirDict
                 
         if missingSamplePolys:
-            errtext = "The following sites have %s, but are missing sample polygons for %s:\n" % (selected_veg_code, sampOccasion)
+            errtext = "The following %s sites have %s, but are missing sample polygons for %s:\n" % ( len(missingSamplePolys), selected_veg_code, sampOccasion)
             errtext += '\n'.join(missingSamplePolys)
             e.call(errtext)
 

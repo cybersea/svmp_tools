@@ -66,10 +66,11 @@ class SvmpToolsError(Exception):
         for line in lines:
           if len(line)> max_len:
             max_len = len(line)
-          msg_line += '\n| %s |\n' % line
+          msg_line += '\n| %s |' % line
         
         msg = '\n|%s--|' % (max_len*'-')
         msg += msg_line
+        msg += '\n'
         msg += '|%s--|\n' % (max_len*'-')
         return msg
 
