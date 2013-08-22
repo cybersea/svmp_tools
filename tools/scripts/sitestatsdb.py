@@ -100,14 +100,15 @@ def make_pyFCDict(siteList,sample_poly_path,sampOcc,fcSuffix):
         #  the call to MakeFeatureLayer *will not* bomb if the
         #  the select statement is bad -- a null layer will exist
         #
+        #  Check for layers with no rows to find sites with missing sample polygons
         #
-        #msg( "Creating temp feature layer '%s'" % fl_output_name )
         # Arc 10.0 cannot use named args
         delimited_field = arcpy.AddFieldDelimiters( sample_poly_fc, utils.sitestatidCol )
         where_clause= delimited_field + " = " + "'%s'" % (site_stat_poly_id)
-        #msg(where_clause)
         arcpy.MakeFeatureLayer_management( sample_poly_fc, fl_output_name, where_clause )
-        if arcpy.Exists( fl_output_name ):
+        row_count = int(arcpy.GetCount_management(fl_output_name).getOutput(0))
+        # msg("%s has %s rows" % (fl_output_name,row_count))
+        if row_count:
             siteFCDict[site] = fl_output_name
         else:
             missingPolygons.append( site )
