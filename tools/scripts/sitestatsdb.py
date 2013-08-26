@@ -418,7 +418,6 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
     mindepflagCol = utils.mindepflagCol     
 
     for site in sites:
-        #msg("In the site loop for: '%s'" % site)
         # Initialize lists to hold transect data for site
         samplenList = []  # Sample length values
         veglenList = [] # Eelgrass length values
@@ -441,7 +440,6 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
             e.call("site %s:  No data in table %s" % (site, inTable))
 
         startDate = row.getValue(dateCol)
-        #msg("Start Date: %s  | type = %s" % (startDate, type( startDate )) )
         n = 0  # Counter for number of transects used in calculations
         # Gather necessary data from data table
         while row:
@@ -459,7 +457,6 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
                 if minDepZM <> utils.nullDep:
                     mindepList.append(minDepZM)
             n = n + 1 # increment the transect counter 
-            #msg("Number of rows processed for sample length and eelgrass length: %s" % (n))           
             row = rows.next()
         del row
         del rows  # Get rid of cursor
@@ -555,8 +552,8 @@ def calc_siteStats(sites,inTable,pyDirDict,selected_veg_code,samp_occasion):
       
         siteStats = [ site_results_id, site, startDate, selected_veg_code, n, estmean_vegfraction, 
                      sample_area, est_basalcov, se_basalcov,
-                     n_mindep, mean_mindep, max_mindep, min_mindep, se_mindep,
-                     n_maxdep, mean_maxdep, max_maxdep, min_maxdep, se_maxdep, sitestat_id]
+                     n_mindep, mean_mindep, min_mindep, max_mindep, se_mindep,
+                     n_maxdep, mean_maxdep, min_maxdep, max_maxdep, se_maxdep, sitestat_id]
 
         allSiteStats.append(siteStats)
 
