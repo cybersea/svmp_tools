@@ -128,7 +128,8 @@ def trans_pt2line(ptFC,lnFC,transID):
         # Get a list of fields in the input point feature class
         pt_fields = utils.get_fieldnames(ptFC,arcpy)
         # Cursor for iterating through Point Feature class
-        allpts = arcpy.SearchCursor(ptFC)
+        objidCol = arcpy.Describe(ptFC).OIDFieldName
+        allpts = arcpy.SearchCursor(ptFC,"","","",objidCol)
         pt = allpts.next()
         lastTrk = 0   # Initialize the transect counter
         lineArray = arcpy.CreateObject("Array")  # Make an array object for the line
@@ -883,8 +884,8 @@ if __name__ == "__main__":
                 #sites_no_slpr.append( site )
 
             # Delete the temporary line files:
-            arcpy.Delete_management(lnFC)
-            arcpy.Delete_management(cliplnFC)
+            #arcpy.Delete_management(lnFC)
+            #arcpy.Delete_management(cliplnFC)
 
         #
         # Calculate Site Statistics for Vegetation of interest sites
