@@ -809,7 +809,6 @@ if __name__ == "__main__":
         # that are not found in the target feature class 
         #
         pyDirDict, missingSamplePolys = make_pyFCDict(siteList_Veg,sampPyFC,sampOccasion,pySuffix)
-        print pyDirDict
                 
         if missingSamplePolys:
             errtext = "The following %s sites have %s, but are missing sample polygons for %s:\n" % ( len(missingSamplePolys), selected_veg_code, sampOccasion)
@@ -836,12 +835,12 @@ if __name__ == "__main__":
             # GDB location of temp files
             gdb_temp_dir_path = os.path.dirname(ptFC)
             # name for Line Feature Class (put in same directory as input points)
-            shape_name = "_%s_%s_transect_line" % (site,sampOccasion)
+            shape_name = "%s_%s_transect_line" % (site,sampOccasion)
             lnFC = os.path.join( gdb_temp_dir_path, shape_name)
             # full path for sample Polygon Feature Class
             pyFC = pyDirDict[site]
             # Output clipped Line Feature Class name
-            shape_name = "_%s_%s_transect_line_clip" % (site,sampOccasion)
+            shape_name = "%s_%s_transect_line_clip" % (site,sampOccasion)
             cliplnFC = os.path.join( gdb_temp_dir_path, shape_name )
             # Control File Name
             ctlFile = "".join((site,ctlSuffix))
@@ -874,18 +873,9 @@ if __name__ == "__main__":
             msg("Inserting transect statistics into data table")
             insert_stats(trans_table_fullpath,transStats,transCols)
 
-            #if transStats:
-                #insert_stats(trans_table_fullpath,transStats,transCols)
-            #else:
-                ##
-                ## add this site to sites_no_slpr to drop a warning
-                ## at the end of the script run
-                ##
-                #sites_no_slpr.append( site )
-
             # Delete the temporary line files:
-            #arcpy.Delete_management(lnFC)
-            #arcpy.Delete_management(cliplnFC)
+            arcpy.Delete_management(lnFC)
+            arcpy.Delete_management(cliplnFC)
 
         #
         # Calculate Site Statistics for Vegetation of interest sites
@@ -907,6 +897,9 @@ if __name__ == "__main__":
             siteStats_noVeg = calc_siteStats_noVeg(siteList_NoVeg,ptDirDict,selected_veg_code,sampOccasion)
             msg("Inserting site statistics into data table")
             insert_stats(site_table_fullpath,siteStats_noVeg,siteCols)
+            
+        arcpy.Compact_management(siteDB)
+
  
 
     except SystemExit:

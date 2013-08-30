@@ -76,8 +76,8 @@ if __name__ == "__main__":
         # and associate it with the arcpy
         e = SvmpToolsError( arcpy )
         # Set some basic defaults for error handling
-        e.debug = True
-        e.full_tb = True
+        #e.debug = True
+        #e.full_tb = True
 
         #-- Get parameters -----
         # Input Data Parent Directory 
@@ -172,6 +172,9 @@ if __name__ == "__main__":
                 #
                 #
                 e.call( err )
+                
+        arcpy.Compact_management(outGDB)
+        
     except SystemExit:
         pass
     except:
