@@ -309,7 +309,7 @@ class TransectDatasource( object ):
                             value = time24hr
                         except Exception:
                             errtext = "Error converting source time, %s , to 24-hr format. CSV row: %s" % ( value, csv_row )
-                            errtext += "\nExpected input time format is hh:mm:ss AM/PM"
+                            errtext += "\nExpected input time format is hh:mm:ss AM/PM or hh:mm:ss (24-hr)"
                             raise SetValueError( errtext )
 
                     # Convert null values to a nonsense number for dbf file

@@ -106,6 +106,16 @@ if __name__ == "__main__":
         # Sampling occasion for data to be processed
         # Parameter Data Type:  String
         sampOccasion = arcpy.GetParameterAsText(7)
+ 
+        # Parameters for testing
+        #inParentDir = "C:/projects/dnr_svmp2012/input/VegMon/2012_Field_Season/Site Folders" 
+        #inSpatRef = "GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]];-400 -400 1000000000;-100000 10000;-100000 10000;8.98315284119521E-09;0.001;0.001;IsHighPrecision" 
+        #siteFile = "C:/projects/dnr_svmp2012/input/VegMon/2012_Field_Season/site2process_ab.txt" 
+        #outGDB = "C:/projects/dnr_svmp2012/output/svmp_trans2shp_test.mdb" 
+        #outSpatRef = "PROJCS['NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Feet',GEOGCS['GCS_North_American_1983_HARN',DATUM['D_North_American_1983_HARN',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Lambert_Conformal_Conic'],PARAMETER['False_Easting',1640416.666666667],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',-120.5],PARAMETER['Standard_Parallel_1',45.83333333333334],PARAMETER['Standard_Parallel_2',47.33333333333334],PARAMETER['Latitude_Of_Origin',45.33333333333334],UNIT['Foot_US',0.3048006096012192]];-117498300 -98850300 3048.00609601219;-100000 10000;-100000 10000;3.28083333333333E-03;0.001;0.001;IsHighPrecision" 
+        #veg_code_lookup = "C:/projects/dnr_svmp2012/data/convert/svmp_draft20130322.mdb/veg_codes" 
+        #sampOccasion_lookup = "C:/projects/dnr_svmp2012/output/svmp_trans2shp_test.mdb/sites_status" 
+        #sampOccasion = 2012
         
 
         #-------------------------------------------------------------------

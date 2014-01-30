@@ -424,20 +424,30 @@ def convert_DateTime(survDate,survTime):
     return (date_time, time24hr) 
   
 # Convert 12-hr time to 24-hr time
-# Assumes Date time in hh:mm:ss AM/PM format
+# Assumes Date time in hh:mm:ss AM/PM format or hh:mm:ss 24-hour format
 def convert_Time(survTime):
     # Convert to 24-hour time
-    [hms,ampm] = survTime.split(' ')
-    [h,m,s] = hms.split(':')
-    if ampm == 'PM' and int(h) < 12:
-    # Add 12 hours to get 24 hour time
-        h = str(int(h) + 12)
-    if int(h) < 10 and len(h) < 2:
-    # Add leading zero to hour if missing
-        h = '0' + h
-    # if it's in the 12 A.M. hour, need to change to 00
-    if ampm == 'AM' and int(h) == 12:
-        h = '00'
+    print "Survey Time: %s" % (survTime)
+    # Check if AM/PM is in input time string
+    if 'AM' in survTime or 'PM' in survTime:
+      [hms,ampm] = survTime.split(' ')
+      print "Time: %s and AMPM: %s" % (hms,ampm)
+      [h,m,s] = hms.split(':')
+      if ampm == 'PM' and int(h) < 12:
+      # Add 12 hours to get 24 hour time
+          h = str(int(h) + 12)
+      if int(h) < 10 and len(h) < 2:
+      # Add leading zero to hour if missing
+          h = '0' + h
+      # if it's in the 12 A.M. hour, need to change to 00
+      if ampm == 'AM' and int(h) == 12:
+          h = '00'
+    else:
+      # Assume 24-hr time format if no AM/PM
+      [h,m,s] = survTime.split(':')
+      if int(h) < 10 and len(h) < 2:
+          # Add leading zero to hour if missing
+              h = '0' + h
     time24hr = ':'.join([h,m,s])
     return time24hr
 #--------------------------------------------------------------------------
