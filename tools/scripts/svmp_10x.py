@@ -33,12 +33,13 @@ class Site:
 
     """
 
+
     def __init__(self, id, sampling_occasion, veg_col, transect_gdb, sample_poly_fc, ctl_directory):
         self.id = id
         self.sampling_occasion = sampling_occasion
         self.veg_col = veg_col
-        self.sitestat_id = "".join((self.id,"_",self.sampling_occasion))
-        self.site_results_id = "".join((self.id,"_",self.sampling_occasion,"_",veg_col))
+        self.sitestat_id = "".join((self.id, "_", self.sampling_occasion))
+        self.site_results_id = "".join((self.id, "_", self.sampling_occasion, "_", veg_col))
         self.transect_gdb = transect_gdb
         self.sample_poly_fc = sample_poly_fc
         self.ctl_directory = ctl_directory
@@ -46,7 +47,7 @@ class Site:
     @property
     def transect_pt_fc(self):
         """ Transect Point Feature class full path"""
-        fc_name = "".join((self.id, "_", self.sampling_occasion, utils.ptFCSuffix))
+        fc_name = "%s_%s%s" % (self.id, self.sampling_occasion, utils.ptFCSuffix)
         return os.path.join(self.transect_gdb, fc_name)
 
     @property
@@ -89,21 +90,21 @@ class Site:
             # Make NumPy Array from table and see if it returns a result
             results = arcpy.da.TableToNumPyArray(self.transect_pt_fc, self.veg_col)
             if results[self.veg_col].max() > 0:
-                 return True
+                return True
             else:
-                 return False
+                return False
 
         return False
 
     @property
     def sample_poly_exists(self):
         """ Flag for existence of sample polygon"""
-        # Build where clause like this: sitestat_id = "hdc2334_2014"
+        # Build where clause that looks this: [sitestat_id] = "hdc2334_2014"
         delimited_field = arcpy.AddFieldDelimiters(self.sample_poly_fc, utils.sitestatidCol)
         where_clause = delimited_field + " = " + "'%s'" % (self.sitestat_id)
         # Make NumPy Array from table and see if it returns a result
         results = arcpy.da.TableToNumPyArray(self.sample_poly_fc, utils.sitestatidCol, where_clause)
-        #print results - for debugging
+        # print results - for debugging
         if results:
             return True
         else:
@@ -131,13 +132,89 @@ class Site:
         fc_name = "%s_%s_transect_line" % (self.id, self.sampling_occasion)
         return os.path.join(self.transect_gdb, fc_name)
 
-
     @property
     def transect_ln_clip_fc(self):
         """ Returns the the full path of a temporary feature class used to depict CLIPPED transect line segments """
         fc_name = "%s_%s_transect_line_clip" % (self.id, self.sampling_occasion)
         return os.path.join(self.transect_gdb, fc_name)
 
+    def make_line_fc(self, clip=True):
+        """
+        Creates a line feature class from point feature class
+        """
+        # Get the spatial reference from the point feature class
+        spatRef = arcpy.Describe(self.transect_pt_fc).spatialReference
+        # Create an empty polyline feature class
+        self.del_fc(self.transect_ln_fc)
+        arcpy.CreateFeatureclass_management(os.path.dirname(self.transect_ln_fc), os.path.basename(self.transect_ln_fc),
+                                            "Polyline", self.transect_pt_fc, spatial_reference=spatRef)
+        # Base Field names (without Object ID and Shape fields)
+        field_names = utils.get_fieldnames(self.transect_pt_fc, arcpy)
+        pt_field_names = ['OID@', 'SHAPE@XY'] + field_names
+        ln_field_names = ['OID@', 'SHAPE@'] + field_names
+        # (u'OID@', u'SHAPE@', u'site_code', u'tran_num', u'date_samp', u'Time24hr', u'depth_obs', u'depth_interp',
+        # u'Phyllo', u'Zm', u'Native_SG', u'Zj', u'undiff', u'video', u'TrkType')
+
+        # Open a Cursor for populating the line feature class
+        cursor = arcpy.da.InsertCursor(self.transect_ln_fc, ln_field_names)
+        print cursor.fields
+
+        expression = "ORDER BY %s, %s, %s" % (arcpy.AddFieldDelimiters(self.transect_pt_fc, utils.trkCol),
+                                              arcpy.AddFieldDelimiters(self.transect_pt_fc, utils.shpDateCol),
+                                              arcpy.AddFieldDelimiters(self.transect_pt_fc, utils.time24hrCol))
+        with arcpy.da.SearchCursor(self.transect_pt_fc, pt_field_names, sql_clause=(None, expression)) as allpts:
+            prev_transect = 0  # intialize transect counter
+            from_point = arcpy.Point()
+            to_point = arcpy.Point()
+            pt_attributes = ()
+
+            for pt in allpts:
+                # Get the transect ID
+                transect_id = pt[3]
+                if transect_id != prev_transect:
+                    # This is the first point in a transect
+                    from_point.X, from_point.Y = pt[1]
+                    from_point.ID = pt[0]
+                    print "%s first point: %s, %s, %s" % (transect_id, from_point.ID, from_point.X, from_point.Y)
+                    prev_transect = transect_id
+                    pt_attributes = pt[2:]
+                    print from_point, pt_attributes
+                else:
+                    # This is a point along the transect
+                    to_point.X, to_point.Y = pt[1]
+                    to_point.ID = pt[0]
+                    array = arcpy.Array([from_point, to_point])
+                    line_segment = arcpy.Polyline(array)
+                    line_attributes = (from_point.ID, line_segment) + pt_attributes
+                    # Insert a new row with the line segment and associated attributes into the feature class
+                    cursor.insertRow(line_attributes)
+                    # The previous "to" point becomes the "from" point
+                    from_point.X = to_point.X
+                    from_point.Y = to_point.Y
+                    from_point.ID = to_point.ID
+                    # store the attributes for the current point to be used on next line segment
+                    pt_attributes = pt[2:]
+                    #print line_segment.JSON, line_segment.length
+        del cursor
+
+        # If clip flag is true, clip the line with the sample polygon
+        if clip:
+            self.clip_line_fc()
+
+    def clip_line_fc(self):
+        if self.sample_poly_exists and arcpy.Exists(self.transect_ln_fc):
+            self.del_fc(self.transect_ln_clip_fc)
+            # Build where clause like this: [sitestat_id] = 'hdc2334_2014'
+            where_clause = "%s = '%s'" % (arcpy.AddFieldDelimiters(self.sample_poly_fc, utils.sitestatidCol),
+                                          self.sitestat_id)
+            poly_fl = "sample_poly_feature"
+            arcpy.MakeFeatureLayer_management(self.sample_poly_fc, poly_fl, where_clause)
+            arcpy.Clip_analysis(self.transect_ln_fc, poly_fl, self.transect_ln_clip_fc)
+
+
+    def del_fc(self, fc):
+        if arcpy.Exists(fc):
+            arcpy.Delete_management(fc)
 
 
 class Transects:
@@ -154,15 +231,20 @@ class Transects:
     mintransdeps -- dictionary of transect id (key) and minimum depth of transect  (value)
     maxvegdeps -- dictionary of transect id (key) and maximum depth of vegetation on transect (value)
     minvegdeps -- dictionary of transect id (key) and minimum depth of vegetation on transect (value)
+    trans_lengths -- dictionary of transect id (key) and total length of clipped transect (value)
+    veg_lengths -- dictionary of transect id (key) and total length of veg on clipped transect (value)
+    veg_fractions -- dictionary of transect id (key) and fraction of vegetation on clipped transect
     """
 
-    def __init__(self,site):
+    def __init__(self, site):
         self.site = site
         self.transect_list = self.site.transect_list
         self.get_trans_results_ids()
         self.get_trkflags()
         self.get_transdeps()
         self.get_vegdeps()
+        self.get_translengths()
+        self.get_veglengths()
 
     def get_trans_results_ids(self):
         self.transect_results_ids = {}
@@ -187,7 +269,7 @@ class Transects:
         if self.site.ctl_file_exists:
             for line in open(self.site.ctl_file):
                 line = line.strip()
-                [att,val] = line.split(",")
+                [att, val] = line.split(",")
                 val = val.strip()
                 # Get Track Number
                 if att == utils.ctlTrkAtt:
@@ -202,14 +284,14 @@ class Transects:
                         maxflag = 1
                     elif val == utils.ctlNo:
                         maxflag = 0
-                    self.maxflags[trk]= maxflag
+                    self.maxflags[trk] = maxflag
                 # Get Minimum Depth Flag
                 if att == utils.ctlMinAtt:
                     if val == utils.ctlYes:
                         minflag = 1
                     elif val == utils.ctlNo:
                         minflag = 0
-                    self.minflags[trk]= minflag
+                    self.minflags[trk] = minflag
 
     def get_transdeps(self):
         self.maxtransdeps = {}
@@ -218,7 +300,7 @@ class Transects:
             delimited_field_dep = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.shpDepCol)
             # Loop through all transect at the site
             for t in self.site.transect_list:
-                # Build where clause that looks like this: tran_num = 1 and depth_interp <> -9999
+                # Build where clause that looks like this: [tran_num] = 1 and [depth_interp] <> -9999
                 delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.trkCol)
                 where_clause = delimited_field_id + " = %d and " % t
                 where_clause += delimited_field_dep + " <> %d" % utils.nullDep
@@ -228,7 +310,7 @@ class Transects:
                     So, a maximum depth is actually the lowest number
                     and minimum depth is the highest number
                 """
-                results = arcpy.da.TableToNumPyArray(self.site.transect_pt_fc, (utils.trkCol,utils.shpDepCol),
+                results = arcpy.da.TableToNumPyArray(self.site.transect_pt_fc, (utils.trkCol, utils.shpDepCol),
                                                      where_clause)
                 # Might need some checks for null results here.
                 maxdep = results[utils.shpDepCol].min()
@@ -239,36 +321,91 @@ class Transects:
     def get_vegdeps(self):
         self.maxvegdeps = {}
         self.minvegdeps = {}
+        # Create Delimited Field Names
         if self.site.transect_pt_fc_exists and self.site.veg_exists:
             delimited_field_dep = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.shpDepCol)
             delimited_field_veg = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, self.site.veg_col)
             delimited_field_video = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.videoCol)
-
-            #results = arcpy.da.TableToNumPyArray(self.site.transect_pt_fc, (utils.trkCol,utils.shpDepCol,utils.videoCol))
-            # print results
+            # Loop through all transects and get associated max/min depths where veg is present
             for t in self.site.transect_list:
                 # Build where clause that looks like this (with proper field delimiters) :
-                # tran_num = 3 and Zm = 1 and video = 1 and depth_interp <> -9999
+                # [tran_num] = 3 and [Zm] = 1 and [video] = 1 and [depth_interp] <> -9999
                 delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.trkCol)
                 where_clause = delimited_field_id + " = %d and " % t
                 where_clause += delimited_field_veg + " = 1 and "
                 where_clause += delimited_field_video + " = 1 and "
                 where_clause += delimited_field_dep + " <> %d" % utils.nullDep
-                """Get results and find max and min depths
+                """ Get results and find max and min depths
                     NOTE: Comparisons for max and min look backward because
                     Depths below MLLW are recorded with negative numbers
                     So, a maximum depth is actually the lowest number
                     and minimum depth is the highest number
                 """
-                results = arcpy.da.TableToNumPyArray(self.site.transect_pt_fc, (utils.trkCol,utils.shpDepCol,
-                                                        self.site.veg_col,utils.videoCol),where_clause)
+                results = arcpy.da.TableToNumPyArray(self.site.transect_pt_fc, (utils.trkCol, utils.shpDepCol,
+                                                                self.site.veg_col, utils.videoCol),where_clause)
                 # Might need some checks for null results here.
                 maxdep = results[utils.shpDepCol].min()
                 mindep = results[utils.shpDepCol].max()
                 self.maxvegdeps[t] = maxdep
                 self.minvegdeps[t] = mindep
 
+    def get_translengths(self):
+        self.trans_lengths = {}
+        if arcpy.Exists(self.site.transect_ln_clip_fc):
+            delimited_field_trktype = arcpy.AddFieldDelimiters(self.site.transect_ln_clip_fc, utils.trktypeCol)
+            delimited_field_video = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.videoCol)
+            inclTrkTypesString = "(\'" + "\',\'".join(utils.trkType4Stats) + "\')"
+            length_field = arcpy.Describe(self.site.transect_ln_clip_fc).lengthFieldName
 
+            # Loop through all transect at the site
+            for t in self.site.transect_list:
+                # Build where clause that looks like this: [tran_num] = 1 and [video] = 1 and [TrkType] in ('SLPR')
+                delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_ln_clip_fc, utils.trkCol)
+                where_clause = "%s = %d and " % (delimited_field_id, t)
+                where_clause += "%s = %d and " % (delimited_field_video, 1)
+                where_clause += "%s in %s" % (delimited_field_trktype, inclTrkTypesString)
+                # Get results and sum the total length of the transect meeting the criteria
+                results = arcpy.da.TableToNumPyArray(self.site.transect_ln_clip_fc,
+                                                     (utils.trkCol, utils.trktypeCol, length_field),
+                                                     where_clause)
+                # Might need some checks for null results here.
+                trans_length = results[length_field].sum()
+                self.trans_lengths[t] = trans_length
+
+    def get_veglengths(self):
+        self.veg_lengths = {}
+        if self.site.veg_exists and arcpy.Exists(self.site.transect_ln_clip_fc):
+            delimited_field_veg = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, self.site.veg_col)
+            delimited_field_video = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.videoCol)
+            delimited_field_trktype = arcpy.AddFieldDelimiters(self.site.transect_ln_clip_fc, utils.trktypeCol)
+            inclTrkTypesString = "(\'" + "\',\'".join(utils.trkType4Stats) + "\')"
+            length_field = arcpy.Describe(self.site.transect_ln_clip_fc).lengthFieldName
+
+            # Loop through all transect at the site
+            for t in self.site.transect_list:
+                # Build where clause that looks like this:
+                #   [tran_num] = 3 and [Zm] = 1 and [video] = 1 and [TrkType] in ('SLPR')
+                delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_ln_clip_fc, utils.trkCol)
+                where_clause = "%s = %d and " % (delimited_field_id, t)
+                where_clause += "%s = %d and " % (delimited_field_veg, 1)
+                where_clause += "%s = %d and " % (delimited_field_video, 1)
+                where_clause += "%s in %s" % (delimited_field_trktype, inclTrkTypesString)
+                # Get results and sum the total length of the transect meeting the criteria
+                results = arcpy.da.TableToNumPyArray(self.site.transect_ln_clip_fc,
+                                                     (utils.trkCol, utils.trktypeCol, length_field),
+                                                     where_clause)
+                # Might need some checks for null results here.
+                veg_length = results[length_field].sum()
+                self.veg_lengths[t] = veg_length
+
+    def calc_vegfraction(self):
+        self.veg_fractions = {}
+        if self.trans_lengths and self.veg_lengths:
+            for transect, trans_len in self.trans_lengths.items():
+                veg_len  = self.veg_lengths[transect]
+                veg_fraction = veg_len / trans_len
+                print transect, trans_len, veg_len, veg_fraction
+                self.veg_fractions[transect] = veg_fraction
 
 
 
@@ -288,6 +425,7 @@ class Transect:
 
 
     """
+
     def __init__(self, site, id):
         """ Pass in a site object to initialize"""
         self.site = site

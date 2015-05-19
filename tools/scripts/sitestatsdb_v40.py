@@ -10,7 +10,7 @@ import svmpUtils as utils
 if __name__ == '__main__':
 
     mysite = svmp.Site("swh1626", "2014", "Native_SG",
-                  r"Z:\Users\allison\projects\dnr_svmp2015\eelgrass_svmp\00-14_monitoring_results\transect_data\svmp_TD_abtest.mdb",
+                  r"Z:\Users\allison\projects\dnr_svmp2015\eelgrass_svmp\00-14_monitoring_results\transect_data\svmp_TD_abtest_new.mdb",
                   r"Z:\Users\allison\projects\dnr_svmp2015\eelgrass_svmp\00-14_monitoring_results\svmp_site_info.mdb\sample_polygons",
                   r"Z:\Users\allison\projects\dnr_svmp2015\eelgrass_svmp\2014_test\site_folders")
 
@@ -25,18 +25,25 @@ if __name__ == '__main__':
     # print "Sample Polygon ID: %s_%s" % (mysite.id, mysite.sampling_occasion)
     # print "Sample Polygon Exists? %s" % (mysite.sample_poly_exists)
     print "Transects: %s" % (mysite.transect_list)
-    print mysite.transect_ln_fc
-    print mysite.transect_ln_clip_fc
+    #print mysite.transect_ln_fc
+    #print mysite.transect_ln_clip_fc
+    #mysite.make_line_fc()
+    #mysite.clip_line_fc()
 
     mytransects = svmp.Transects(mysite)
 
-    print mytransects.transect_results_ids
-    print mytransects.trktypes
-    print mytransects.maxflags
-    print mytransects.minflags
-    print mytransects.transect_list
-    print mytransects.mintransdeps
-    print mytransects.maxtransdeps
-    print mytransects.minvegdeps
-    print mytransects.maxvegdeps
+    # print mytransects.transect_results_ids
+    # print mytransects.trktypes
+    # print mytransects.maxflags
+    # print mytransects.minflags
+    # print mytransects.transect_list
+    # print mytransects.mintransdeps
+    # print mytransects.maxtransdeps
+    # print mytransects.minvegdeps
+    # print mytransects.maxvegdeps
+
+    print mytransects.trans_lengths
+    print mytransects.veg_lengths
+    mytransects.calc_vegfraction()
+
 
