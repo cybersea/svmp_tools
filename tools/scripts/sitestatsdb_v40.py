@@ -44,6 +44,7 @@ if __name__ == '__main__':
 
     print mytransects.trans_lengths
     print mytransects.veg_lengths
-    mytransects.calc_vegfraction()
+    mytransects.calc_vegfractions()
+    mytransects.get_dates()
 
 

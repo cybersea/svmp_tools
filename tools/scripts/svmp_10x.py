@@ -233,7 +233,9 @@ class Transects:
     minvegdeps -- dictionary of transect id (key) and minimum depth of vegetation on transect (value)
     trans_lengths -- dictionary of transect id (key) and total length of clipped transect (value)
     veg_lengths -- dictionary of transect id (key) and total length of veg on clipped transect (value)
-    veg_fractions -- dictionary of transect id (key) and fraction of vegetation on clipped transect
+    veg_fractions -- dictionary of transect id (key) and fraction of vegetation on clipped transect (value)
+    date_sampled -- Date of site sampling
+    trans_dates -- dictionary of transect id (key) and data of sampling (value)
     """
 
     def __init__(self, site):
@@ -245,6 +247,7 @@ class Transects:
         self.get_vegdeps()
         self.get_translengths()
         self.get_veglengths()
+        self.get_dates()
 
     def get_trans_results_ids(self):
         self.transect_results_ids = {}
@@ -398,7 +401,7 @@ class Transects:
                 veg_length = results[length_field].sum()
                 self.veg_lengths[t] = veg_length
 
-    def calc_vegfraction(self):
+    def calc_vegfractions(self):
         self.veg_fractions = {}
         if self.trans_lengths and self.veg_lengths:
             for transect, trans_len in self.trans_lengths.items():
@@ -407,7 +410,26 @@ class Transects:
                 print transect, trans_len, veg_len, veg_fraction
                 self.veg_fractions[transect] = veg_fraction
 
-
+    def get_dates(self):
+        self.date_sampled = None
+        self.trans_dates = {}
+        if self.site.transect_pt_fc_exists:
+            # Get unique combination for transect id and date.
+            delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.trkCol)
+            delimited_field_date = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.shpDateCol)
+            expression_prefix  = "DISTINCT"
+            expression_postfix = "ORDER BY %s, %s" % (delimited_field_id,delimited_field_date)
+            cursor = arcpy.da.SearchCursor(self.site.transect_pt_fc,
+                                                    (utils.trkCol, utils.shpDateCol)
+                                                    ,sql_clause=(expression_prefix, expression_postfix))
+            results = [[r[0],r[1]] for r in cursor]
+            del cursor
+            #valueDict = {r[0]:[r[1],r[2]] for r in arcpy.da.SearchCursor(myFC, ["OID@","ID","NAME"])}
+            # print map(max, zip(*results)) -- gets max of both columns
+            self.date_sampled = min(zip(*results)[1])
+            for r in results:
+                self.trans_dates[r[0]] = r[1]
+            print self.trans_dates
 
 class Transect:
     """ Represents the SVMP data for a transect
