@@ -42,9 +42,20 @@ if __name__ == '__main__':
     # print mytransects.minvegdeps
     # print mytransects.maxvegdeps
 
-    print mytransects.trans_lengths
-    print mytransects.veg_lengths
-    mytransects.calc_vegfractions()
-    mytransects.get_dates()
+    # print mytransects.trans_lengths
+    # print mytransects.veg_lengths
+    # mytransects.calc_vegfractions()
+    # mytransects.get_dates()
+
+    mysitestats = svmp.SiteStatistics(mytransects)
+    print "Site Results ID: %s" % mysitestats.site_results_id
+    print "Site %s" % mysitestats.siteid
+    print "Number of Transect for area calcs: %s" % mysitestats.n_area
+    print "Veg Fraction: %s" % mysitestats.veg_fraction
+    print "Sample Area %s" % mysitestats.sample_area
+    print "Veg Area: %s" % mysitestats.veg_area
+    print "Standard Error of Veg Area %s" % mysitestats.se_vegarea
+    print "Sitestat ID: %s" % mysitestats.sitestat_id
+
 
 

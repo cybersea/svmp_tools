@@ -360,7 +360,7 @@ class Transects:
             inclTrkTypesString = "(\'" + "\',\'".join(utils.trkType4Stats) + "\')"
             length_field = arcpy.Describe(self.site.transect_ln_clip_fc).lengthFieldName
 
-            # Loop through all transect at the site
+            # Loop through all transects at the site
             for t in self.site.transect_list:
                 # Build where clause that looks like this: [tran_num] = 1 and [video] = 1 and [TrkType] in ('SLPR')
                 delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_ln_clip_fc, utils.trkCol)
@@ -430,6 +430,95 @@ class Transects:
             for r in results:
                 self.trans_dates[r[0]] = r[1]
             print self.trans_dates
+
+class SiteStatistics:
+    """ Represents the Site Level Statistics for SVMP site
+    Properties
+    transects -- Transects object
+    siteid -- unique Site identifier
+    sitestat_id -- unique identifier for site and sampling occasion combination
+    site_results_id -- unique identifier for site, sampling occasion, veg combination
+    sample_lengths -- A list of the site's individual transect lengths
+    vegetation_lengths -- A list of the site's individual transect vegetation lengths
+    veg_fraction -- estimated mean vegetation fraction
+    n_area -- number of transects used in area calculations
+    mean_transect_length -- mean transect length
+    sample_area -- sample area
+
+
+    """
+    def __init__(self,transects):
+        self.transects = transects
+        self.siteid = transects.site.id
+        self.sitestat_id = transects.site.sitestat_id
+        self.site_results_id = transects.site.site_results_id
+        self.sample_lengths = self.transects.trans_lengths.values()
+        self.vegetation_lengths = self.transects.veg_lengths.values()
+
+    @property
+    def veg_fraction(self):
+        """Estimated mean vegetation fraction (P Bar Hat) """
+        sum_samplelen = sum(self.sample_lengths)
+        sum_veglen = sum(self.vegetation_lengths)
+        try:
+            return sum_veglen / sum_samplelen
+        except ZeroDivisionError:
+            return 0.0
+
+    @property
+    def n_area(self):
+        """ Number of transects used in area calculations """
+        return len(self.sample_lengths)
+
+    @property
+    def mean_transect_length(self):
+        """Mean transect lengths (L bar) """
+        try:
+            return sum(self.sample_lengths) / self.n_area
+        except ZeroDivisionError:
+            return 0.0
+
+    @property
+    def sample_area(self):
+        """ Area of the sample polygon """
+        if self.transects.site.sample_poly_exists:
+            sample_poly = self.transects.site.sample_poly_fc
+            # Build where clause like this: [sitestat_id] = 'hdc2334_2014'
+            delimited_field = arcpy.AddFieldDelimiters(sample_poly, utils.sitestatidCol)
+            where_clause = delimited_field + " = " + "'%s'" % (self.sitestat_id)
+            # Make NumPy Array from table and see if it returns a result
+            results = arcpy.da.FeatureClassToNumPyArray(sample_poly, "SHAPE@AREA", where_clause)
+            return results["SHAPE@AREA"].sum()
+
+    @property
+    def veg_area(self):
+        """ Area of the vegetation at the site """
+        try:
+            return self.veg_fraction * self.sample_area
+        except ZeroDivisionError:
+            return 0.0
+
+
+    def calc_var_vegfraction(self):
+        """ Estimated variance of the vegetation fraction """
+        return utils.ratioEstVar(self.sample_lengths,self.vegetation_lengths,self.veg_fraction,
+                                 self.n_area,self.mean_transect_length)
+
+    def calc_var_vegarea(self):
+        """ Estimated variance of the vegetation area """
+        var_vegfraction = self.calc_var_vegfraction()
+        return var_vegfraction * (self.sample_area ** 2)
+
+    @property
+    def se_vegarea(self):
+        """ Standard error of the vegetation area """
+        var_vegarea = self.calc_var_vegarea()
+        return var_vegarea ** 0.5
+
+
+
+
+
 
 class Transect:
     """ Represents the SVMP data for a transect
