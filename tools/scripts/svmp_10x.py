@@ -43,6 +43,9 @@ class Site:
         self.transect_gdb = transect_gdb
         self.sample_poly_fc = sample_poly_fc
         self.ctl_directory = ctl_directory
+        # Create transect lines only based on validation/existence checks
+        if self.ctl_file_exists and self.veg_exists and self.sample_poly_exists:
+            self.make_line_fc(clip=True)
 
     @property
     def transect_pt_fc(self):
@@ -141,6 +144,7 @@ class Site:
     def make_line_fc(self, clip=True):
         """
         Creates a line feature class from point feature class
+        :rtype : object
         """
         # Get the spatial reference from the point feature class
         spatRef = arcpy.Describe(self.transect_pt_fc).spatialReference
@@ -175,10 +179,10 @@ class Site:
                     # This is the first point in a transect
                     from_point.X, from_point.Y = pt[1]
                     from_point.ID = pt[0]
-                    print "%s first point: %s, %s, %s" % (transect_id, from_point.ID, from_point.X, from_point.Y)
+                    #print "%s first point: %s, %s, %s" % (transect_id, from_point.ID, from_point.X, from_point.Y)
                     prev_transect = transect_id
                     pt_attributes = pt[2:]
-                    print from_point, pt_attributes
+                    #print from_point, pt_attributes
                 else:
                     # This is a point along the transect
                     to_point.X, to_point.Y = pt[1]
@@ -285,14 +289,14 @@ class Transects:
                 if att == utils.ctlMaxAtt:
                     if val == utils.ctlYes:
                         maxflag = 1
-                    elif val == utils.ctlNo:
+                    else:
                         maxflag = 0
                     self.maxflags[trk] = maxflag
                 # Get Minimum Depth Flag
                 if att == utils.ctlMinAtt:
                     if val == utils.ctlYes:
                         minflag = 1
-                    elif val == utils.ctlNo:
+                    else:
                         minflag = 0
                     self.minflags[trk] = minflag
 
@@ -303,7 +307,7 @@ class Transects:
             delimited_field_dep = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.shpDepCol)
             # Loop through all transect at the site
             for t in self.site.transect_list:
-                # Build where clause that looks like this: [tran_num] = 1 and [depth_interp] <> -9999
+                # Build where clause that looks like this: [tran_num] = 3 and [depth_interp] <> -9999
                 delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.trkCol)
                 where_clause = delimited_field_id + " = %d and " % t
                 where_clause += delimited_field_dep + " <> %d" % utils.nullDep
@@ -331,6 +335,7 @@ class Transects:
             delimited_field_video = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.videoCol)
             # Loop through all transects and get associated max/min depths where veg is present
             for t in self.site.transect_list:
+                #print t
                 # Build where clause that looks like this (with proper field delimiters) :
                 # [tran_num] = 3 and [Zm] = 1 and [video] = 1 and [depth_interp] <> -9999
                 delimited_field_id = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.trkCol)
@@ -346,9 +351,16 @@ class Transects:
                 """
                 results = arcpy.da.TableToNumPyArray(self.site.transect_pt_fc, (utils.trkCol, utils.shpDepCol,
                                                                 self.site.veg_col, utils.videoCol),where_clause)
-                # Might need some checks for null results here.
-                maxdep = results[utils.shpDepCol].min()
-                mindep = results[utils.shpDepCol].max()
+                # print where_clause
+                # print results
+                # print results[utils.shpDepCol].any()
+                # Check for null results here.  (or try: except ValueError:  ??)
+                if results[utils.shpDepCol].any():
+                    maxdep = results[utils.shpDepCol].min()
+                    mindep = results[utils.shpDepCol].max()
+                else:
+                    maxdep = utils.nullDep
+                    mindep = utils.nullDep
                 self.maxvegdeps[t] = maxdep
                 self.minvegdeps[t] = mindep
 
@@ -359,6 +371,7 @@ class Transects:
             delimited_field_video = arcpy.AddFieldDelimiters(self.site.transect_pt_fc, utils.videoCol)
             inclTrkTypesString = "(\'" + "\',\'".join(utils.trkType4Stats) + "\')"
             length_field = arcpy.Describe(self.site.transect_ln_clip_fc).lengthFieldName
+            #print length_field
 
             # Loop through all transects at the site
             for t in self.site.transect_list:
@@ -372,6 +385,7 @@ class Transects:
                                                      (utils.trkCol, utils.trktypeCol, length_field),
                                                      where_clause)
                 # Might need some checks for null results here.
+                #print t, results[length_field]
                 trans_length = results[length_field].sum()
                 self.trans_lengths[t] = trans_length
 
@@ -404,11 +418,14 @@ class Transects:
     def calc_vegfractions(self):
         self.veg_fractions = {}
         if self.trans_lengths and self.veg_lengths:
-            for transect, trans_len in self.trans_lengths.items():
-                veg_len  = self.veg_lengths[transect]
-                veg_fraction = veg_len / trans_len
-                print transect, trans_len, veg_len, veg_fraction
-                self.veg_fractions[transect] = veg_fraction
+            for t, trans_len in self.trans_lengths.items():
+                veg_len  = self.veg_lengths[t]
+                try:
+                    veg_fraction = veg_len / trans_len
+                except ZeroDivisionError:
+                    veg_fraction = 0.0
+                #print transect, trans_len, veg_len, veg_fraction
+                self.veg_fractions[t] = veg_fraction
 
     def get_dates(self):
         self.date_sampled = None
@@ -429,7 +446,6 @@ class Transects:
             self.date_sampled = min(zip(*results)[1])
             for r in results:
                 self.trans_dates[r[0]] = r[1]
-            print self.trans_dates
 
 class SiteStatistics:
     """ Represents the Site Level Statistics for SVMP site
@@ -440,28 +456,35 @@ class SiteStatistics:
     site_results_id -- unique identifier for site, sampling occasion, veg combination
     sample_lengths -- A list of the site's individual transect lengths
     vegetation_lengths -- A list of the site's individual transect vegetation lengths
+    max_deps_4stats -- A list of maximum depths passing criteria for use for mean stats
+    min_deps_4stats -- A list of minimum depths passing criteria for use for mean stats
     veg_fraction -- estimated mean vegetation fraction
     n_area -- number of transects used in area calculations
     mean_transect_length -- mean transect length
     sample_area -- sample area
-
+    veg_area -- vegetation area
+    var_vegfraction -- variance of the vegetation fraction
+    var_vegarea -- variance of the vegetation area
+    se_vegarea -- standard error of the vegetation area
 
     """
     def __init__(self,transects):
         self.transects = transects
-        self.siteid = transects.site.id
-        self.sitestat_id = transects.site.sitestat_id
-        self.site_results_id = transects.site.site_results_id
+        self.siteid = self.transects.site.id
+        self.sitestat_id = self.transects.site.sitestat_id
+        self.site_results_id = self.transects.site.site_results_id
         self.sample_lengths = self.transects.trans_lengths.values()
         self.vegetation_lengths = self.transects.veg_lengths.values()
+        self.max_deps_4stats = self.get_depths4stats(self.transects.maxvegdeps,self.transects.maxflags)
+        self.min_deps_4stats = self.get_depths4stats(self.transects.minvegdeps,self.transects.minflags)
 
     @property
     def veg_fraction(self):
         """Estimated mean vegetation fraction (P Bar Hat) """
-        sum_samplelen = sum(self.sample_lengths)
-        sum_veglen = sum(self.vegetation_lengths)
+        # sum_samplelen = sum(self.sample_lengths)
+        # sum_veglen = sum(self.vegetation_lengths)
         try:
-            return sum_veglen / sum_samplelen
+            return sum(self.vegetation_lengths) / sum(self.sample_lengths)
         except ZeroDivisionError:
             return 0.0
 
@@ -498,22 +521,122 @@ class SiteStatistics:
         except ZeroDivisionError:
             return 0.0
 
-
-    def calc_var_vegfraction(self):
+    @property
+    def var_vegfraction(self):
         """ Estimated variance of the vegetation fraction """
         return utils.ratioEstVar(self.sample_lengths,self.vegetation_lengths,self.veg_fraction,
                                  self.n_area,self.mean_transect_length)
 
-    def calc_var_vegarea(self):
+    @property
+    def var_vegarea(self):
         """ Estimated variance of the vegetation area """
-        var_vegfraction = self.calc_var_vegfraction()
-        return var_vegfraction * (self.sample_area ** 2)
+        return self.var_vegfraction * (self.sample_area ** 2)
 
     @property
     def se_vegarea(self):
         """ Standard error of the vegetation area """
-        var_vegarea = self.calc_var_vegarea()
-        return var_vegarea ** 0.5
+        return self.var_vegarea ** 0.5
+
+    def get_depths4stats(self,depth_dict,flag_dict):
+        """ Return a list of depth values meeting criteria for use in stats calculations
+            Must have Track type in the list of types used for stats (SLPR)
+            And must have a depth flag = 1 (yes)
+        """
+        depths = []
+        for t, trktype in self.transects.trktypes.items():
+            if trktype in utils.trkType4Stats:
+                if flag_dict[t] == 1:
+                    depths.append(depth_dict[t])
+        return depths
+
+    @property
+    def n_veg_mindep(self):
+        """ Number of transects used for mean vegetation minimum depth """
+        # n = 0
+        # for t in self.transects.transect_list:
+        #     try:
+        #         if self.transects.minflags[t] == 1:
+        #             if self.transects.trktypes[t] in utils.trkType4Stats:
+        #                 n += 1
+        #     except IndexError:
+        #         pass
+        return len(self.min_deps_4stats)
+
+
+    @property
+    def n_veg_maxdep(self):
+        """ Number of transects used for mean vegetation maximum depth """
+        # n = 0
+        # for t in self.transects.transect_list:
+        #     try:
+        #         if self.transects.maxflags[t] == 1:
+        #             if self.transects.trktypes[t] in utils.trkType4Stats:
+        #                 n += 1
+        #     except IndexError:
+        #         pass
+        return len(self.max_deps_4stats)
+
+    @property
+    def veg_mind_mean(self):
+        """ Mean of minimum vegetation depth """
+        # dep_sum = 0
+        # # print self.transects.trktypes
+        # # print self.transects.minflags
+        # # print self.transects.minvegdeps
+        # for t, trktype in self.transects.trktypes.items():
+        #     if trktype in utils.trkType4Stats:
+        #         if self.transects.minflags[t] == 1:
+        #             dep_sum += self.transects.minvegdeps[t]
+        # return dep_sum / self.n_veg_mindep
+        return sum(self.min_deps_4stats) / self.n_veg_mindep
+
+    @property
+    def veg_maxd_mean(self):
+        """ Mean of maximum vegetation depth """
+        # dep_sum = 0
+        # # print self.transects.trktypes
+        # # print self.transects.maxflags
+        # # print self.transects.maxvegdeps
+        # for t, trktype in self.transects.trktypes.items():
+        #     if trktype in utils.trkType4Stats:
+        #         if self.transects.maxflags[t] == 1:
+        #             dep_sum += self.transects.maxvegdeps[t]
+        # return dep_sum / self.n_veg_mindep
+        return sum(self.max_deps_4stats) / self.n_veg_maxdep
+
+    @property
+    def veg_mind_se(self):
+        """ Standard error of the vegetation minimum depth """
+        if self.n_veg_mindep > 1:
+            stdev = utils.stdDev(self.min_deps_4stats)
+            return utils.stdErr(stdev, self.n_veg_mindep)
+        else:
+            return utils.nullDep
+
+    @property
+    def veg_maxd_se(self):
+        """ Standard error of the vegetation minimum depth """
+        if self.n_veg_maxdep > 1:
+            stdev = utils.stdDev(self.max_deps_4stats)
+            return utils.stdErr(stdev, self.n_veg_maxdep)
+        else:
+            return utils.nullDep
+
+    @property
+    def veg_mind_shallowest(self):
+        """ Site shallowest vegetation depth
+        Note: Counter-intuitive use of max/min because depths below MLLW are negative
+        Using all depth values, not certain Track Types (like for mean)
+        """
+        return max(self.transects.minvegdeps.values())
+
+    @property
+    def veg_maxd_deepest(self):
+        """ Site deepest vegetation depth
+        Note: Counter-intuitive use of max/min because depths below MLLW are negative
+        Using all depth values, not certain Track Types (like for mean)
+        """
+        return min(self.transects.maxvegdeps.values())
 
 
 
