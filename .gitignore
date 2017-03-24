@@ -10,4 +10,5 @@ tools/SVMP*ab.tbx
 tools/SVMP*DEV.tbx
 tools/scripts/.idea/
 tools/.idea
+.idea/
 .DS_Store

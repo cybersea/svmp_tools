@@ -1,5 +1,11 @@
 import arcpy
 import os
+import sys
+# Not working, yet.....
+# tool_path = os.path.dirname(os.path.realpath(__file__))
+# script_path = os.path.join(tool_path, "scripts")
+# sys.path.append(script_path)
+
 
 class Toolbox(object):
     def __init__(self):
