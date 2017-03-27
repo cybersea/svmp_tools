@@ -394,8 +394,9 @@ class CsvData(object):
         #  set nativesg column to NULL/unknown (-9999)
         # Note:  in pandas ~ gets the inverse of a boolean dataframe
         self.df.loc[df_null & ~df_present, nativesgCol] = NULL_VEG
-        # Finally, If video = 0 (bad quality), set nativesg column to null/unknown (-9999)
+        # Finally, If video = 0 (bad quality) or null, set nativesg column to null/unknown (-9999)
         self.df.loc[self.df[videoCol] == 0, nativesgCol] = NULL_VEG
+        self.df.loc[self.df[videoCol] == NULL_VIDEO, nativesgCol] = NULL_VEG
 
         # Add the native seagrass column to the veg columns list
         self.veg_columns.append(nativesgCol)
