@@ -96,7 +96,10 @@ class CsvPath(object):
     Properties:
     sitecode -- the code for the site
     csvdir -- the full path to the directory -- concatenation of the base directory and site code
-    valid -- flag to indicate if directory exists
+    search_pattern -- the pattern to match for transect data files:   sitecode_YYYY_##_TD.csv
+    valid -- flag to indicate if path is valid -- directory exists and their are transect files
+    dir_exist -- flag to indicate if the directory exists
+    files_exist -- flag to indicate if files matching the search pattern exist in the directory
     tdfiles -- list of transect data files within the directory
 
     """
@@ -104,11 +107,26 @@ class CsvPath(object):
     def __init__(self, sitecode, basedir):
         self.sitecode = sitecode
         self.csvdir = os.path.normpath(os.path.join(basedir, sitecode))
+        self.search_pattern = self.sitecode + '_*_*_TD.csv'
 
     @property
     def valid(self):
         """Binary attribute indicating the existence of the csv path"""
+        if self.dir_exists and self.files_exist:
+            return True
+        else:
+            return False
+
+    @property
+    def dir_exists(self):
+        """Binary attribute indicating the existence of the csv path"""
         if os.path.exists(self.csvdir):
+            return True
+        else:
+            return False
+    @property
+    def files_exist(self):
+        if self.tdfiles:
             return True
         else:
             return False
@@ -117,10 +135,9 @@ class CsvPath(object):
     def tdfiles(self):
         """List of transect data files matching the specified pattern within the directory"""
         _tdfiles = []
-        if self.valid:
+        if self.dir_exists:
             files = os.listdir(self.csvdir)
-            search_pattern = self.sitecode + '_*_TD.csv'
-            _tdfiles = fnmatch.filter(files, search_pattern)
+            _tdfiles = fnmatch.filter(files, self.search_pattern)
         return _tdfiles
 
 
@@ -582,6 +599,10 @@ class SiteVisit(object):
 
 class LogFile(object):
     """ Represents the a Log File used for error and validation reporting
+
+    Properties:
+    log_header -- Column headers for log file, varies according to log file type
+
     """
 
     def __init__(self, log_dir, log_type='csv2ptErrorLog'):
@@ -648,8 +669,13 @@ class LogFile(object):
         if not self.fh:
             self.open_log()
 
-        err_type = "Directory Does Not Exist"
-        self.fh.write(",".join((csv_dir.csvdir, "", err_type, "")) + "\n")
+        if not csv_dir.dir_exists:
+            err_type = "Directory Does Not Exist"
+            self.fh.write(",".join((csv_dir.csvdir, "", err_type, "")) + "\n")
+        elif not csv_dir.files_exist:
+            err_type = "No Transect Files Found"
+            self.fh.write(",".join((csv_dir.csvdir, csv_dir.search_pattern, err_type, "")) + "\n")
+
 
     def write_datawarn(self, csvdata):
 
@@ -691,7 +717,6 @@ class LogFile(object):
             self.fh.write(",".join((csv_dir, csv_file, err_type, details)) + "\n")
 
 
-
 def timeStamped(fname, fmt='{fname}_%Y%m%d_%H%M%S.csv'):
     # Create time stamped filename
     return datetime.datetime.now().strftime(fmt).format(fname=fname)
@@ -705,6 +730,7 @@ def make_sitelist(sites_file):
 # General message accumulator
 def msg(msg):
     arcpy.AddMessage(msg)
+
 
 def main(in_dir, sites_file, vegcode_table, out_gdb, err_dir):
     # Main function to run code
@@ -721,13 +747,15 @@ def main(in_dir, sites_file, vegcode_table, out_gdb, err_dir):
 
     # Loop through all of the sites in the site list
     for site in site_codes:
-        msg("--- Processing site: {0} ---".format(site))
+        msg("----- Processing site: {0} -----".format(site))
 
         # Locate and validate directory.  Get list of transect data files
         csvDir = CsvPath(site, in_dir)
 
         # Process valid directories
         if csvDir.valid:
+            # # If there are matching transect files in the directory, process them
+            # if csvDir.tdfiles:
             # Process all transect data files in the directory
             for tdfile in csvDir.tdfiles:
                 # Site Visit object
@@ -754,9 +782,12 @@ def main(in_dir, sites_file, vegcode_table, out_gdb, err_dir):
         # Log Invalid directories to Error Log
         else:
             # write a line to the log file about the error
-            msg("Directory does not exist {0}.\nWriting to error log file: {1}".format(csvDir.csvdir, error_log.log_file))
+            msg("Directory, {0}, does not exist, "
+                "or has no files matching the pattern: {1}_YYYY_##_TD.csv .\n"
+                "Writing to error log file: {2}".format(csvDir.csvdir, csvDir.sitecode, error_log.log_file))
             error_log.write_direrr(csvDir)
 
+    # Close the log files if they were opened
     if error_log.fh:
         error_log.close_log()
     if warning_log.fh:
