@@ -472,39 +472,6 @@ class CsvData(object):
                 or self.veg_gt1 or self.veg1_video0 or self.dupe_ts:
             self.warnings = True
 
-
-
-
-
-
-
-    def validate_data_test(self):
-        # Validate video field -- video max must be > 0
-        print self.df['video'].max()
-
-        # Find rows with missing values:
-        print "Nulls:"
-        print self.df[self.df.isnull().any(axis=1)]['ID']
-        print "-9999:"
-        print self.df[self.df.isin({'Zm':[-9999]})['Zm']]
-
-        # Validate veg/video combo -- will get empty data frame if no errors
-        errordf = self.df.loc[(self.df['Zm'] + self.df['Zj'] + self.df['undiff'] + self.df['Phyllo'] >= 1) & (self.df['video'] == 0)]
-
-        if not errordf.empty:
-            print errordf[['ID','Zm','Zj','undiff','nativesg','video']]
-
-        # Duplicate time stamps
-        dups = self.df[self.df.duplicated(['date_time_samp'],take_last=True)]
-        if not dups.empty:
-            print dups[['ID','date_time_samp']]
-
-        # Veg or video Column value > 1
-        print self.df['Zm'].max()
-        if self.df['Zm'].max() > 1:
-            print self.df[(self.df['Zm'] > 1)][['ID','Zm']]
-
-
     def _rename_columns(self):
         # Rename some input columns to match feature class
         col_in2out = {
