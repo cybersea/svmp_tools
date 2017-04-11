@@ -468,7 +468,7 @@ class CsvData(object):
     @property
     def video_gt1(self):
         # Filter for Rows with video values > 1
-        df_gt1 = self.df[videoCol] == NULL_VIDEO
+        df_gt1 = self.df[videoCol] > 1
         # Make a list of row ids with null vegetation values
         _video_gt1 = self.df.loc[df_gt1][ptidCol].tolist()
         return _video_gt1
