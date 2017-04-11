@@ -260,8 +260,9 @@ class CsvSource(object):
 
     def _validate_latlon(self, col):
         """Function to validate lat or lon values based on expected pattern"""
-        # Assumes input in format ##d##.####' Dir
-        latlon_pattern = "[0-9]+[d][0-9]+[.][0-9]+\' [nsewNSEW]"
+        # Assumes input in format ##d##.####' Dir or ##d##' Dir
+        # latlon_pattern = "[0-9]+[d][0-9]+[.][0-9]+\' [nsewNSEW]"
+        latlon_pattern = "[0-9]+[d][0-9]+[.]?[0-9]+\' [nsewNSEW]"
         error_rows = []
         #
         for i, row in enumerate(self.rows):
@@ -801,16 +802,17 @@ if __name__ == '__main__':
 
 
     # Input parameter 1:  Parent directory for site data folders and input csv files
-    in_dir = "Y:/projects/dnr_svmp2016/data/2014_test/site_folders"
+    # in_dir = "Y:/projects/dnr_svmp2016/data/2014_test/site_folders"
+    in_dir = "Y:/projects/dnr_svmp2016/data/examples"
 
     # Input parameter 2:  Text file with list of sites to process
-    sites_file = os.path.join("Y:/projects/dnr_svmp2016/data/2014_test", "sites2process_all.txt")
+    sites_file = os.path.join("Y:/projects/dnr_svmp2016/data/examples", "sites2process_examples.txt")
 
     # Input parameter 3: Table with vegetation codes
     vegcode_table = "Y:/projects/dnr_svmp2016/db/SVMP_2000_2015_DB.v4_20170109/SVMP_DB_v4_20170109.mdb/veg_codes"
 
     # Input parameter 4: Output Geodatabase to store point feature classes
-    out_gdb = "Y:/projects/dnr_svmp2016/data/2014_test/2014_test_pgdb.mdb"
+    out_gdb = "Y:/projects/dnr_svmp2016/data/examples/examples_pgdb.mdb"
 
     # Input parameter 5: Error Log directory
     err_dir = in_dir
