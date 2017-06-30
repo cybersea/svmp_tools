@@ -142,7 +142,88 @@ class TransectAndSiteStatistics(object):
 
     def getParameterInfo(self):
         """Define parameter definitions"""
-        params = None
+        # Input parameter 1:  Geodatabase with Transect Point Feature Class(es)
+        transect_gdb = arcpy.Parameter(
+            displayName="Transect Point Geodatabase",
+            name="transect_gdb",
+            datatype="Workspace",
+            parameterType="Required",
+            direction="Input"
+        )
+        transect_gdb.filter.list = ['Local Database','Remote Database']
+
+        # Input parameter 2:  SVMP Geodatabase with Tables needed for selecting correct transects
+        svmp_gdb = arcpy.Parameter(
+            displayName="SVMP Core Geodatabase",
+            name="svmp_gdb",
+            datatype="Workspace",
+            parameterType="Required",
+            direction="Input"
+        )
+        svmp_gdb.filter.list = ['Local Database','Remote Database']
+
+        # Input parameter 3: Site Statistics Geodatabase with Template results tables
+        stats_gdb = arcpy.Parameter(
+            displayName="Site Statistics Database",
+            name="stats_db",
+            datatype="Workspace",
+            parameterType="Required",
+            direction="Input"
+        )
+        stats_gdb.filter.list = ['Local Database','Remote Database']
+        #
+        # Input parameter 4: Survey Year to be Processed
+        survey_year = arcpy.Parameter(
+            displayName="Survey Year",
+            name="survey_year",
+            datatype="String",
+            parameterType="Required",
+            direction="Input"
+        )
+        # Input parameter 5: Vegetation Type to be Processed
+        veg_code = arcpy.Parameter(
+            displayName="Vegetation Type",
+            name="veg_code",
+            datatype="String",
+            parameterType="Required",
+            direction="Input"
+        )
+        # Input parameter 6: Vegetation Type to be Processed
+        study = arcpy.Parameter(
+            displayName="Study",
+            name="study",
+            datatype="String",
+            parameterType="Optional",
+            direction="Input",
+            multiValue=True,
+        )
+        study.filter.type = "ValueList"
+        study.filter.list = ['SVMPsw','SVMPfocus','SVMPsupp','Stressor','Suquamish',
+                             'SitesConcern','Reserves','ProIsland','MRC-Elwha','FOSJ2003','Elwha','DNRparks','CityBham']
+        # study.values = [['SVMPsw','SVMPfocus','SVMPsupp','Stressor']]
+
+        # Input parameter 6: Vegetation Type to be Processed
+        samp_sel = arcpy.Parameter(
+            displayName="Sample Selection Method",
+            name="samp_sel",
+            datatype="String",
+            parameterType="Optional",
+            direction="Input",
+            multiValue=True,
+        )
+        samp_sel.filter.type = "ValueList"
+        samp_sel.filter.list = ['SRS','STR','SUBJ','SUBJ-SRS','SYS']
+        # samp_sel.values = [['SRS','STR','SUBJ','SUBJ-SRS','SYS']]
+
+        # err_dir = arcpy.Parameter(
+        #     displayName="Output Error Log Directory",
+        #     name="err_dir",
+        #     datatype="Folder",
+        #     parameterType="Required",
+        #     direction="Input"
+        # )
+
+        params = [transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, study, samp_sel]
         return params
 
     def isLicensed(self):
