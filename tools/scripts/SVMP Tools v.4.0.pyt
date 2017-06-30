@@ -188,7 +188,7 @@ class TransectAndSiteStatistics(object):
             parameterType="Required",
             direction="Input"
         )
-        # Input parameter 6: Vegetation Type to be Processed
+        # Input parameter 6: Study or Studies to Be Processed
         study = arcpy.Parameter(
             displayName="Study",
             name="study",
@@ -196,13 +196,14 @@ class TransectAndSiteStatistics(object):
             parameterType="Optional",
             direction="Input",
             multiValue=True,
+            category="Optional - Choose Study"
         )
         study.filter.type = "ValueList"
         study.filter.list = ['SVMPsw','SVMPfocus','SVMPsupp','Stressor','Suquamish',
                              'SitesConcern','Reserves','ProIsland','MRC-Elwha','FOSJ2003','Elwha','DNRparks','CityBham']
         # study.values = [['SVMPsw','SVMPfocus','SVMPsupp','Stressor']]
 
-        # Input parameter 6: Vegetation Type to be Processed
+        # Input parameter 7: Vegetation Type to be Processed
         samp_sel = arcpy.Parameter(
             displayName="Sample Selection Method",
             name="samp_sel",
@@ -210,6 +211,7 @@ class TransectAndSiteStatistics(object):
             parameterType="Optional",
             direction="Input",
             multiValue=True,
+            category="Optional - Sample Selection Method"
         )
         samp_sel.filter.type = "ValueList"
         samp_sel.filter.list = ['SRS','STR','SUBJ','SUBJ-SRS','SYS']
@@ -222,6 +224,11 @@ class TransectAndSiteStatistics(object):
         #     parameterType="Required",
         #     direction="Input"
         # )
+
+        # Default values  -- Change or remove these for DNR paths
+        transect_gdb.value = "Y:/projects/dnr_svmp2016/data/2014_test/2014_test_pgdb.mdb"
+        svmp_gdb.value = "Y:/projects/dnr_svmp2016/db/SVMP_2000_2015_DB.v5_20170125/SVMP_DB_v5_20170123_ABwork.mdb"
+        stats_gdb.value = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
 
         params = [transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, study, samp_sel]
         return params
