@@ -174,7 +174,7 @@ class TransectAndSiteStatistics(object):
             direction="Input"
         )
         stats_gdb.filter.list = ['Local Database','Remote Database']
-        #
+
         # Input parameter 4: Survey Year to be Processed
         survey_year = arcpy.Parameter(
             displayName="Survey Year",
@@ -184,6 +184,7 @@ class TransectAndSiteStatistics(object):
             direction="Input"
         )
         survey_year.enabled = False  # Disabled until value in svmp_gdb
+
         # Input parameter 5: Vegetation Type to be Processed
         veg_code = arcpy.Parameter(
             displayName="Vegetation Type",
@@ -193,6 +194,7 @@ class TransectAndSiteStatistics(object):
             direction="Input"
         )
         veg_code.enabled = False # Disabled until value in svmp_gdb
+
         # Input parameter 6: Optional List of Sites file
         sites_file = arcpy.Parameter(
             displayName = "List of Sites File",
@@ -201,7 +203,8 @@ class TransectAndSiteStatistics(object):
             parameterType="Optional",
             direction="Input",
         )
-        # Input parameter 6: Study or Studies to Be Processed
+
+        # Input parameter 7: Study or Studies to Be Processed
         study = arcpy.Parameter(
             displayName="Study",
             name="study",
@@ -212,11 +215,10 @@ class TransectAndSiteStatistics(object):
             category="Optional - Choose Study"
         )
         study.filter.type = "ValueList"
-        study.filter.list = ['SVMPsw','SVMPfocus','SVMPsupp','Stressor','Suquamish',
-                             'SitesConcern','Reserves','ProIsland','MRC-Elwha','FOSJ2003','Elwha','DNRparks','CityBham']
-        # study.values = [['SVMPsw','SVMPfocus','SVMPsupp','Stressor']]
+        study.enabled = False # Disabled until value in svmp_gdb
 
-        # Input parameter 7: Vegetation Type to be Processed
+
+        # Input parameter 8: Vegetation Type to be Processed
         samp_sel = arcpy.Parameter(
             displayName="Sample Selection Method",
             name="samp_sel",
@@ -227,8 +229,7 @@ class TransectAndSiteStatistics(object):
             category="Optional - Sample Selection Method"
         )
         samp_sel.filter.type = "ValueList"
-        samp_sel.filter.list = ['SRS','STR','SUBJ','SUBJ-SRS','SYS']
-        # samp_sel.values = [['SRS','STR','SUBJ','SUBJ-SRS','SYS']]
+        samp_sel.enabled = False # Disabled until value in svmp_gdb
 
         # err_dir = arcpy.Parameter(
         #     displayName="Output Error Log Directory",
@@ -239,10 +240,10 @@ class TransectAndSiteStatistics(object):
         # )
 
         # Default values  -- Change or remove these for DNR paths
-        transect_gdb.value = "Y:/projects/dnr_svmp2016/data/svmp_pt_data\svmptoolsv4_td2fc_testing_11-15.mdb"
+        transect_gdb.value = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
         svmp_gdb.value = "Y:/projects/dnr_svmp2016/db/SVMP_2000_2015_DB.v5_20170125/SVMP_DB_v5_20170123_ABwork.mdb"
         stats_gdb.value = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
-        sites_file.value = os.path.join("Y:/projects/dnr_svmp2016/data/2014_test", "sites2process_all.txt")
+        sites_file.value = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
 
         params = [transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel]
         return params
@@ -259,24 +260,41 @@ class TransectAndSiteStatistics(object):
         # Populate Vegetation Type parameter with values from veg_codes table
         if parameters[1].value:
             svmp_gdb = str(parameters[1].value)
-            # Vegetation Type - from veg_code column in veg_codes table
-            vegcode_table = os.path.normpath(os.path.join(svmp_gdb, utils.vegcodesTbl))
-            vegcode_field = utils.vegcodeCol
-            vegcodes_list = utils.unique_values(vegcode_table, vegcode_field)
-            parameters[4].filter.list = vegcodes_list
-            parameters[4].enabled = True
             # Survey year - from visit_year column in site_visits table
             sitevisits_table = os.path.normpath(os.path.join(svmp_gdb, utils.sitevisitsTbl))
             surveyyr_field = utils.visityearCol # 'visit_year' #
             surveyyrs_list = utils.unique_values(sitevisits_table, surveyyr_field)
             parameters[3].filter.list = sorted(surveyyrs_list,reverse=True)
             parameters[3].enabled = True
+            # Vegetation Type - from veg_code column in veg_codes table
+            vegcode_table = os.path.normpath(os.path.join(svmp_gdb, utils.vegcodesTbl))
+            vegcode_field = utils.vegcodeCol
+            vegcodes_list = utils.unique_values(vegcode_table, vegcode_field)
+            parameters[4].filter.list = vegcodes_list
+            parameters[4].enabled = True
+            # Study (Optional) - from study_code column in study_associations table
+            studyassoc_table = os.path.normpath(os.path.join(svmp_gdb, utils.studyassociationsTbl))
+            studycode_field = utils.studycodeCol
+            studycodes_list = utils.unique_values(studyassoc_table, studycode_field)
+            parameters[6].filter.list = studycodes_list
+            parameters[6].enabled = True
+            # Sample Selection Method - from samp_sel column in site_samples table
+            sitesamples_table = os.path.normpath(os.path.join(svmp_gdb, utils.sitesamplesTbl))
+            sampsel_field = utils.sampselCol
+            sampsel_list = utils.unique_values(sitesamples_table, sampsel_field)
+            parameters[7].filter.list = sampsel_list
+            parameters[7].enabled = True
+
         else:
-            # Disable parameter if no Core SVMP Geodatabase parameter provided
+            # Disable parameter and remove list if no Core SVMP Geodatabase parameter provided
+            parameters[3].filter.list = []
             parameters[3].enabled = False
+            parameters[4].filter.list = []
             parameters[4].enabled = False
-
-
+            parameters[6].filter.list = []
+            parameters[6].enabled = False
+            parameters[7].filter.list = []
+            parameters[7].enabled = False
 
         return
 
