@@ -12,10 +12,21 @@ import arcpy
 # Columns
 vegcodeCol = 'veg_code'
 visityearCol = 'visit_year'
+sampselCol = 'samp_sel'
+studycodeCol = 'study_code'
+sitevisitidCol = 'site_visit_id'
 
 #Tables
 vegcodesTbl = 'veg_codes'
 sitevisitsTbl = 'site_visits'
+sitesamplesTbl = 'site_samples'
+studyassociationsTbl = 'study_associations'
+transectsTbl = 'transects'
+surveysTbl = 'surveys'
+vegoccurTbl = 'veg_occur'
+
+#Feature Classes
+samppolyFC = 'samp_polygons'
 
 
 def unique_values(table, field):
