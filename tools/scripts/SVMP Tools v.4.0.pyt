@@ -257,45 +257,52 @@ class TransectAndSiteStatistics(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
 
+        # Input sources for parameter lists derived from database tables
+        parameter_inputs = {
+            "survey year" : {
+                "index": 3,
+                "table": utils.sitevisitsTbl,
+                "field": utils.visityearCol,
+                "reverse": True,
+            },
+            "veg type" : {
+                "index": 4,
+                "table": utils.vegcodesTbl,
+                "field": utils.vegcodeCol,
+                "reverse": False,
+            },
+            "study code" : {
+                "index": 6,
+                "table": utils.studyassociationsTbl,
+                "field": utils.studycodeCol,
+                "reverse": False,
+            },
+            "sample selection" : {
+                "index": 7,
+                "table": utils.sitesamplesTbl,
+                "field": utils.sampselCol,
+                "reverse": False,
+            }
+        }
+
         # Populate Vegetation Type parameter with values from veg_codes table
         if parameters[1].value:
             svmp_gdb = str(parameters[1].value)
-            # Survey year - from visit_year column in site_visits table
-            sitevisits_table = os.path.normpath(os.path.join(svmp_gdb, utils.sitevisitsTbl))
-            surveyyr_field = utils.visityearCol # 'visit_year' #
-            surveyyrs_list = utils.unique_values(sitevisits_table, surveyyr_field)
-            parameters[3].filter.list = sorted(surveyyrs_list,reverse=True)
-            parameters[3].enabled = True
-            # Vegetation Type - from veg_code column in veg_codes table
-            vegcode_table = os.path.normpath(os.path.join(svmp_gdb, utils.vegcodesTbl))
-            vegcode_field = utils.vegcodeCol
-            vegcodes_list = utils.unique_values(vegcode_table, vegcode_field)
-            parameters[4].filter.list = vegcodes_list
-            parameters[4].enabled = True
-            # Study (Optional) - from study_code column in study_associations table
-            studyassoc_table = os.path.normpath(os.path.join(svmp_gdb, utils.studyassociationsTbl))
-            studycode_field = utils.studycodeCol
-            studycodes_list = utils.unique_values(studyassoc_table, studycode_field)
-            parameters[6].filter.list = studycodes_list
-            parameters[6].enabled = True
-            # Sample Selection Method - from samp_sel column in site_samples table
-            sitesamples_table = os.path.normpath(os.path.join(svmp_gdb, utils.sitesamplesTbl))
-            sampsel_field = utils.sampselCol
-            sampsel_list = utils.unique_values(sitesamples_table, sampsel_field)
-            parameters[7].filter.list = sampsel_list
-            parameters[7].enabled = True
-
+            # loop through parameter dictionary to derive list for each paramter
+            for param, input in parameter_inputs.items():
+                table = os.path.normpath(os.path.join(svmp_gdb, input["table"]))
+                # List of unique values for the column in the specified table
+                values_list = utils.unique_values(table, input["field"])
+                # Sort the values and assign to parameter's filter list
+                parameters[input["index"]].filter.list = sorted(values_list,reverse=input["reverse"])
+                # Enable the parameter
+                parameters[input["index"]].enabled = True
         else:
-            # Disable parameter and remove list if no Core SVMP Geodatabase parameter provided
-            parameters[3].filter.list = []
-            parameters[3].enabled = False
-            parameters[4].filter.list = []
-            parameters[4].enabled = False
-            parameters[6].filter.list = []
-            parameters[6].enabled = False
-            parameters[7].filter.list = []
-            parameters[7].enabled = False
-
+            # Disable parameter and remove list if no Core SVMP Geodatabase parameter provideds
+            for param, input in parameter_inputs.items():
+                parameters[input["index"]].filter.list = []
+                parameters[input["index"]].enabled = False
+                
         return
 
     def updateMessages(self, parameters):
