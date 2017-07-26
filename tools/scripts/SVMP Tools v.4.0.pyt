@@ -144,6 +144,48 @@ class TransectAndSiteStatistics(object):
         self.description = "This tool calculates SVMP transect and site statistics from transect point features"
         self.canRunInBackground = True
 
+        # Input sources for parameter lists derived from database tables:
+        # index = index of parameter (as returned from getParameterInfo)
+        # table = SVMP table containing the column used for parameter list
+        # field = column in the table that includes the items for the parameter list
+        # reverse = boolean indicate reverse sort option
+        self.svmpgdb_idx = 1  # parameter index for master SVMP geodatabase
+        self.parameter_inputs = {
+            "survey year": {
+                "index": 3,
+                "table": utils.sitevisitsTbl,
+                "field": utils.visityearCol,
+                "reverse": True,
+                "table_error": None,
+                "field_error": None,
+            },
+            "veg type": {
+                "index": 4,
+                "table": utils.vegcodesTbl,
+                "field": utils.vegcodeCol,
+                "reverse": False,
+                "table_error": None,
+                "field_error": None,
+            },
+            "study code": {
+                "index": 6,
+                "table": utils.studyassociationsTbl,
+                "field": utils.studycodeCol,
+                "reverse": False,
+                "table_error": None,
+                "field_error": None,
+            },
+            "sample selection": {
+                "index": 7,
+                "table": utils.sitesamplesTbl,
+                "field": utils.sampselCol,
+                "reverse": False,
+                "table_error": None,
+                "field_error": None,
+            }
+        }
+
+
     def getParameterInfo(self):
         """Define parameter definitions"""
         # Input parameter 1:  Geodatabase with Transect Point Feature Class(es)
@@ -218,7 +260,6 @@ class TransectAndSiteStatistics(object):
         study.filter.type = "ValueList"
         study.enabled = False # Disabled until value in svmp_gdb
 
-
         # Input parameter 8: Vegetation Type to be Processed
         samp_sel = arcpy.Parameter(
             displayName="Sample Selection Method",
@@ -258,59 +299,18 @@ class TransectAndSiteStatistics(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
 
-        # Input sources for parameter lists derived from database tables:
-        # index = index of parameter (as returned from getParameterInfo)
-        # table = SVMP table containing the column used for parameter list
-        # field = column in the table that includes the items for the parameter list
-        # reverse = boolean indicate reverse sort option
-        svmpgdb_idx = 1  # parameter index for master SVMP geodatabase
-        parameter_inputs = {
-            "survey year": {
-                "index": 3,
-                "table": utils.sitevisitsTbl,
-                "field": utils.visityearCol,
-                "reverse": True,
-                "table_error": None,
-                "field_error": None,
-            },
-            "veg type": {
-                "index": 4,
-                "table": utils.vegcodesTbl,
-                "field": utils.vegcodeCol,
-                "reverse": False,
-                "table_error": None,
-                "field_error": None,
-            },
-            "study code": {
-                "index": 6,
-                "table": utils.studyassociationsTbl,
-                "field": utils.studycodeCol,
-                "reverse": False,
-                "table_error": None,
-                "field_error": None,
-            },
-            "sample selection": {
-                "index": 7,
-                "table": utils.sitesamplesTbl,
-                "field": utils.sampselCol,
-                "reverse": False,
-                "table_error": None,
-                "field_error": None,
-            }
-        }
-
-        if parameters[svmpgdb_idx].altered:
+        if parameters[self.svmpgdb_idx].altered:
             # Initialize all dependent parameters to empty list and not enabled
-            for param, input in parameter_inputs.items():
+            for param, input in self.parameter_inputs.items():
                 parameters[input["index"]].filter.list = []
                 parameters[input["index"]].enabled = False
 
-        if parameters[svmpgdb_idx].value:
-            svmp_gdb = str(parameters[svmpgdb_idx].value)
+        if parameters[self.svmpgdb_idx].value:
+            svmp_gdb = str(parameters[self.svmpgdb_idx].value)
             # Get list of all tables and feature classes in the selected geodatabase
             tables_fcs = utils.tables_fcs_list(svmp_gdb)
             # loop through parameter dictionary to derive list for each paramter
-            for param, input in parameter_inputs.items():
+            for param, input in self.parameter_inputs.items():
                 # Check for presence of table in the geodatabase
                 if input["table"] in tables_fcs:
                     table = os.path.normpath(os.path.join(svmp_gdb, input["table"]))
@@ -324,25 +324,18 @@ class TransectAndSiteStatistics(object):
                         parameters[input["index"]].enabled = True
                     else:
                         # Add error to parameters dictionary if field is not present
-                        field_error = "[SVMP ERROR]: %s field is not present in table, %s " % (input["field"], input["table"])
-                        input["field_error"] = field_error
-
+                        field_error_text = "[SVMP ERROR]: {0} field is not present in table, {1} ".format(input["field"], input["table"])
+                        input["field_error"] = field_error_text
                 else:
                     # Add error to parameters dictionary if table is not present
-                    table_error = "[SVMP ERROR]: %s table is not present in geodatabase, %s" % (input["table"], svmp_gdb)
-                    input["table_error"] = table_error
-        # else:
-        #     # Disable parameter and remove list if no Core SVMP Geodatabase parameter provideds
-        #     for param, input in parameter_inputs.items():
-        #         parameters[input["index"]].filter.list = []
-        #         parameters[input["index"]].enabled = False
+                    table_error_text = "[SVMP ERROR]: {0} table is not present in geodatabase, {1}".format(input["table"], svmp_gdb)
+                    input["table_error"] = table_error_text
 
         return
 
     def updateMessages(self, parameters):
         """Modify the messages created by internal validation for each tool
         parameter.  This method is called after internal validation."""
-        svmpgdb_idx = 1  # parameter index for master SVMP geodatabase
         return
 
     def execute(self, parameters, messages):
