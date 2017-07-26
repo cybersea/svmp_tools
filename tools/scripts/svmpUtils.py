@@ -36,28 +36,21 @@ def unique_values(table, field):
     # pass list into set to get only unique values and return the result
     return sorted(set(values))
 
-def tables_list(gdb):
-    # Get list of tables in a geodatabase
+def tables_fcs_list(gdb):
+    # Get list of tables and feature classes in a geodatabase
     #Save initial state of workspace
     initial_ws = arcpy.env.workspace
 
     #change workspace to input geodatabase
     arcpy.env.workspace = gdb
     tables = arcpy.ListTables()
-    #reset workspace back to original
-    arcpy.env.workspace = initial_ws
-
-    return tables
-
-def fcs_list(gdb):
-    # Get list of tables in a geodatabase
-    #Save initial state of workspace
-    initial_ws = arcpy.env.workspace
-
-    #change workspace to input geodatabase
-    arcpy.env.workspace = gdb
     fcs = arcpy.ListFeatureClasses()
     #reset workspace back to original
     arcpy.env.workspace = initial_ws
 
-    return fcs
+    return tables + fcs
+
+
+def fieldExists(dataset, field_name):
+    if field_name in [field.name for field in arcpy.ListFields(dataset)]:
+        return True
