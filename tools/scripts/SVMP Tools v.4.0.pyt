@@ -222,7 +222,7 @@ class TransectAndSiteStatistics(object):
         survey_year = arcpy.Parameter(
             displayName="Survey Year",
             name="survey_year",
-            datatype="String",
+            datatype="Long",
             parameterType="Required",
             direction="Input"
         )
@@ -299,43 +299,77 @@ class TransectAndSiteStatistics(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
 
-        if parameters[self.svmpgdb_idx].altered:
-            # Initialize all dependent parameters to empty list and not enabled
-            for param, input in self.parameter_inputs.items():
-                parameters[input["index"]].filter.list = []
-                parameters[input["index"]].enabled = False
+        # Check if SVMP GDB parameter has been changed
+        # if parameters[self.svmpgdb_idx].altered:
+        #     # Initialize all dependent parameters to empty list and not enabled
+        #     for param, input in self.parameter_inputs.items():
+        #         parameters[input["index"]].filter.list = []
+        #         parameters[input["index"]].value = ""
+        #         parameters[input["index"]].enabled = False
 
+        # If SVMP GDB Parameter has a value
         if parameters[self.svmpgdb_idx].value:
             svmp_gdb = str(parameters[self.svmpgdb_idx].value)
             # Get list of all tables and feature classes in the selected geodatabase
-            tables_fcs = utils.tables_fcs_list(svmp_gdb)
+            tables = utils.tables_fcs_list(svmp_gdb)["tables"]
             # loop through parameter dictionary to derive list for each paramter
             for param, input in self.parameter_inputs.items():
-                # Check for presence of table in the geodatabase
-                if input["table"] in tables_fcs:
-                    table = os.path.normpath(os.path.join(svmp_gdb, input["table"]))
-                    # Check for presence of field in table
-                    if utils.fieldExists(table, input["field"]):
-                        # List of unique values for the column in the specified table
-                        values_list = utils.unique_values(table, input["field"])
-                        # Sort the values and assign to parameter's filter list
-                        parameters[input["index"]].filter.list = sorted(values_list,reverse=input["reverse"])
-                        # Enable the parameter
-                        parameters[input["index"]].enabled = True
+                if not parameters[input["index"]].altered:
+                    # Check for presence of table in the geodatabase
+                    if input["table"] in tables:
+                        table = os.path.normpath(os.path.join(svmp_gdb, input["table"]))
+                        # Check for presence of field in table
+                        if utils.fieldExists(table, input["field"]):
+                            # List of unique values for the column in the specified table
+                            values_list = utils.unique_values(table, input["field"])
+                            # Sort the values and assign to parameter's filter list
+                            parameters[input["index"]].filter.list = sorted(values_list,reverse=input["reverse"])
+                            # Enable the parameter
+                            parameters[input["index"]].enabled = True
+                        else:
+                            # Add error to parameters dictionary if field is not present
+                            field_error_text = "[SVMP ERROR]: {0} field is not present in table, {1} ".format(input["field"], input["table"])
+                            input["field_error"] = field_error_text
+                            input["error"] = field_error_text
+                            # parameters[input["index"]].filter.list = []
+                            # parameters[input["index"]].value = ""
+                            # parameters[input["index"]].enabled = False
+                            # parameters[self.svmpgdb_idx].value = "ERROR"
                     else:
-                        # Add error to parameters dictionary if field is not present
-                        field_error_text = "[SVMP ERROR]: {0} field is not present in table, {1} ".format(input["field"], input["table"])
-                        input["field_error"] = field_error_text
-                else:
-                    # Add error to parameters dictionary if table is not present
-                    table_error_text = "[SVMP ERROR]: {0} table is not present in geodatabase, {1}".format(input["table"], svmp_gdb)
-                    input["table_error"] = table_error_text
+                        # Add error to parameters dictionary if table is not present
+                        table_error_text = "[SVMP ERROR]: {0} table is not present in geodatabase, {1}".format(input["table"], svmp_gdb)
+                        input["table_error"] = table_error_text
+                        input["error"] = table_error_text
+                        # parameters[input["index"]].filter.list = []
+                        # parameters[input["index"]].value = ""
+                        # parameters[input["index"]].enabled = False
+                        # parameters[self.svmpgdb_idx].value = "ERROR"
+                        parameters[self.svmpgdb_idx].setErrorMessage("ERROR")
+
+        # else:
+        #     for param, input in self.parameter_inputs.items():
+        #         parameters[input["index"]].filter.list = []
+        #         parameters[input["index"]].value = ""
+        #         parameters[input["index"]].enabled = False
 
         return
 
     def updateMessages(self, parameters):
         """Modify the messages created by internal validation for each tool
         parameter.  This method is called after internal validation."""
+
+
+        for param, input in self.parameter_inputs.items():
+            parameters[input["index"]].value = input["table_error"]
+            if input["table_error"] is not None:
+                parameters[input["index"]].setErrorMessage = input["table_error"]
+                parameters[input["index"]].value = input["table_error"]
+            if input["field_error"]:
+                parameters[input["index"]].setErrorMessage = input["field_error"]
+                parameters[input["index"]].value = input["field_error"]
+            if input.has_key("error"):
+                parameters[input["index"]].value = input["error"]
+
         return
 
     def execute(self, parameters, messages):
