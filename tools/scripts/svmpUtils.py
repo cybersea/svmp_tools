@@ -48,7 +48,7 @@ def tables_fcs_list(gdb):
     #reset workspace back to original
     arcpy.env.workspace = initial_ws
 
-    return tables + fcs
+    return {"tables":tables,"fcs":fcs,"both":tables + fcs}
 
 
 def fieldExists(dataset, field_name):
