@@ -305,10 +305,12 @@ class TransectAndSiteStatistics(object):
         idx_sy = self.parameter_inputs["survey year"]["index"]
         if parameters[self.svmpgdb_idx].altered:
             svmp_gdb = str(parameters[self.svmpgdb_idx].value)
+            tables = utils.tables_fcs_list(svmp_gdb)["tables"]
+            # parameters[self.parameter_inputs["veg type"]["index"]].filter.list = tables
             table = os.path.normpath(os.path.join(svmp_gdb, self.parameter_inputs["survey year"]["table"]))
             field = self.parameter_inputs["survey year"]["field"]
             values_list = utils.unique_values(table, field)
-            parameters[idx_sy].filter.list = sorted(values_list,reverse=self.parameter_inputs["survey year"]["reverse"])
+            parameters[idx_sy].filter.list = sorted(values_list, reverse=self.parameter_inputs["survey year"]["reverse"])
             parameters[idx_sy].enabled = True
             if not parameters[idx_sy].value:
                 parameters[idx_sy].value = max(values_list)
