@@ -293,45 +293,45 @@ class TransectAndSiteStatistics(object):
         validation is performed.  This method is called whenever a parameter
         has been changed."""
 
-        idx_sy = self.parameter_inputs["survey year"]["index"]
         # Run this section if the SVMP GDB parameter is not blank
         if parameters[self.svmpgdb_idx].altered:
             svmp_gdb = str(parameters[self.svmpgdb_idx].value)  # Full pathname of SVMP geodatabase
-            svmp_gdb_base = os.path.basename(svmp_gdb)
-            # Doing the list is much slower than just checking existence
-            # tables = utils.tables_fcs_list(svmp_gdb)["tables"] # List of tables in the SVMP geodatabase
-            table = self.parameter_inputs["survey year"]["table"]
-            table_path = os.path.normpath(
-                os.path.join(svmp_gdb, self.parameter_inputs["survey year"]["table"]))  # Full path to survey year table
-            # parameters[self.parameter_inputs["veg type"]["index"]].filter.list = tables  # For debugging only
-            if arcpy.Exists(table_path):
-                field = self.parameter_inputs["survey year"]["field"] # Field used to get filter list
-                if utils.fieldExists(table_path, field):
-                    values_list = utils.unique_values(table_path, field) # List of unique values for parameter filter list
-                    parameters[idx_sy].filter.list = sorted(values_list, reverse=self.parameter_inputs["survey year"]["reverse"])
-                    parameters[idx_sy].enabled = True  # Enable the paramter
-                    # Set default value as the maximum if parameter does not have an existing value
-                    if not parameters[idx_sy].value:
-                        parameters[idx_sy].value = max(values_list)
+            svmp_gdb_base = os.path.basename(svmp_gdb)  # Geodatabase name without path
+            # Loop through all parameters that use SVMP GDB to set filters
+            for param, input in self.parameter_inputs.items():
+                index = input["index"]  # parameter index
+                table = input["table"]   # Table name for the parameter filter table
+                table_path = os.path.normpath(os.path.join(svmp_gdb,table))  # Full path to survey year table
+                if arcpy.Exists(table_path):
+                    field = input["field"] # Field used to get filter list
+                    if utils.fieldExists(table_path, field):
+                        if parameters[index].value and "[SVMP ERROR]" in parameters[index].valueAsText:
+                            parameters[index].value = "" # Reset parameter value if there was previous error
+                        values_list = utils.unique_values(table_path, field) # List of unique values for parameter filter list
+                        parameters[index].filter.list = sorted(values_list, reverse=input["reverse"])
+                        parameters[index].enabled = True  # Enable the parameter
+                    else:
+                        field_error = "[SVMP ERROR]: Field {0} is not present in Table {1} in {2}".format(field, table, svmp_gdb)
+                        parameters[index].value = field_error
+                        parameters[index].enabled = False
+                        parameters[index].filter.list = []
+                        # self.parameter_inputs["survey year"]["error"] = field_error
                 else:
-                    field_error = "[SVMP ERROR]: Field {0} is not present in {1} in {2}".format(field, table, svmp_gdb)
-                    parameters[idx_sy].value = field_error
-                    parameters[idx_sy].enabled = False
-                    parameters[idx_sy].filter.list = []
-                    # self.parameter_inputs["survey year"]["error"] = field_error
-            else:
-                table_error = "[SVMP ERROR]: Table {0} is not present in {1}".format(table, svmp_gdb_base)
-                parameters[idx_sy].value = table_error
-                parameters[idx_sy].enabled = False
-                parameters[idx_sy].filter.list = []
-                # This works in updateParamters, but the value for "error" in the parameters_input dictionary does
-                #   not get propagated to updateMessages
-                # self.parameter_inputs["survey year"]["error"] = table_error
-                # parameters[self.parameter_inputs["veg type"]["index"]].value = self.parameter_inputs["survey year"]["error"]
+                    table_error = "[SVMP ERROR]: Table {0} is not present in {1}".format(table, svmp_gdb_base)
+                    parameters[index].value = table_error
+                    parameters[index].enabled = False
+                    parameters[index].filter.list = []
+                    # This works in updateParamters, but the value for "error" in the parameters_input dictionary does
+                    #   not get propagated to updateMessages
+                    # self.parameter_inputs["survey year"]["error"] = table_error
+                    # parameters[self.parameter_inputs["veg type"]["index"]].value = self.parameter_inputs["survey year"]["error"]
         # If SVMP GDB parameter is blank
         else:
-            parameters[idx_sy].value = ""
-            parameters[idx_sy].enabled = False
+            for param, input in self.parameter_inputs.items():
+                index = input["index"]
+                parameters[index].value = ""
+                parameters[index].filter.list = []
+                parameters[index].enabled = False
 
         return
 
@@ -339,16 +339,15 @@ class TransectAndSiteStatistics(object):
         """Modify the messages created by internal validation for each tool
         parameter.  This method is called after internal validation."""
 
-        idx_sy = self.parameter_inputs["survey year"]["index"]
-
-        try:
-            if parameters[idx_sy].value.startswith("[SVMP ERROR]"):
-                parameters[idx_sy].setErrorMessage(parameters[idx_sy].value)
-                parameters[idx_sy].value = ""
-                parameters[self.svmpgdb_idx].setErrorMessage("Database is missing required tables or fields.  Select a new GDB")
-        except:
-            pass
-
+        # Loop through all parameters that require tables from the SVMP GDB
+        for param, input in self.parameter_inputs.items():
+            index = input["index"]
+            if parameters[index].value:
+                # If there is a missing table or field
+                if "[SVMP ERROR]" in parameters[index].valueAsText:
+                    if not parameters[self.svmpgdb_idx].hasError():
+                        # Set an error on the SVMP geodatabase
+                        parameters[self.svmpgdb_idx].setErrorMessage("Database is missing required tables or fields.  Select a new GDB")
 
         return
 
