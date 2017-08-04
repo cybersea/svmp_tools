@@ -311,7 +311,7 @@ class TransectAndSiteStatistics(object):
                         parameters[index].filter.list = sorted(values_list, reverse=input["reverse"])
                         parameters[index].enabled = True  # Enable the parameter
                     else:
-                        field_error = "[SVMP ERROR]: Field {0} is not present in Table {1} in {2}".format(field, table, svmp_gdb)
+                        field_error = "[SVMP ERROR]: Field {0} is not present in Table {1} in {2}".format(field, table, svmp_gdb_base)
                         parameters[index].value = field_error
                         parameters[index].enabled = False
                         parameters[index].filter.list = []
