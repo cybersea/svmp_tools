@@ -353,4 +353,34 @@ class TransectAndSiteStatistics(object):
 
     def execute(self, parameters, messages):
         """The source code of the tool."""
+        import statsdb
+        reload(statsdb)  # Remove this after development
+
+        # Input parameter 1:  Geodatabase with individual transect point data -- REQUIRED
+        transect_gdb = parameters[0].valueAsText  #
+
+        # Input parameter 2:  SVMP Geodatabase with Base Tables -- REQUIRED
+        svmp_gdb = parameters[1].valueAsText
+
+        # Input parameter 3: Site Statistics Geodatabase with Template results tables -- REQUIRED
+        stats_gdb = parameters[2].valueAsText
+
+        # Input parameter 4: Survey Year to be Processed -- REQUIRED
+        survey_year = parameters[3].valueAsText
+
+        # Input parameter 5: Vegetation Type to be Processed -- REQUIRED
+        veg_code = parameters[4].valueAsText
+
+        # Input parameter 6: List of Sites file -- OPTIONAL
+        sites_file = parameters[5].valueAsText
+
+        # Input parameter 7: Study or Studies to Be Processed -- OPTIONAL
+        study = parameters[6].valueAsText
+
+        # Input parameter 8: Vegetation Type to be Processed -- OPTIONAL
+        samp_sel = parameters[7].valueAsText
+
+        # Call the main function to process the csv point data
+        stats.main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel)
+
         return
