@@ -15,6 +15,12 @@ visityearCol = 'visit_year'
 sampselCol = 'samp_sel'
 studycodeCol = 'study_code'
 sitevisitidCol = 'site_visit_id'
+sitecodeCol = 'site_code'
+sampidCol = 'site_samp_id'
+transectidCol = 'transect_id'
+surveyidCol = 'survey_id'
+maxdepflagCol = 'tran_maxd_qual'
+mindepflagCol = 'tran_mind_qual'
 
 #Tables
 vegcodesTbl = 'veg_codes'
@@ -24,6 +30,7 @@ studyassociationsTbl = 'study_associations'
 transectsTbl = 'transects'
 surveysTbl = 'surveys'
 vegoccurTbl = 'veg_occur'
+segmentsTbl = 'segments'
 
 #Feature Classes
 samppolyFC = 'samp_polygons'
