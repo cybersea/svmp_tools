@@ -92,6 +92,7 @@ class Table(object):
         self.table = os.path.normpath(os.path.join(gdb, tbl))
         self.fields = flds
         self.query = qry
+        self.df = self._create_df()
 
     @property
     def exists(self):
@@ -100,8 +101,7 @@ class Table(object):
         else:
             return False
 
-    @property
-    def df(self):
+    def _create_df(self):
         if self.exists:
             nparray = arcpy.da.TableToNumPyArray(self.table, self.fields, self.query)
             return pd.DataFrame(nparray)
@@ -126,7 +126,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             {"fields": [
                 utils.sampidCol,
                 utils.sitecodeCol,
+                utils.datesampCol,
                 utils.sampselCol,
+                utils.sampstatCol,
                 utils.sitevisitidCol,
                 ]
             },
@@ -169,7 +171,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # Create the table objects for each table in the dictionary
     missing_tables = [] # List to identify tables that are missing from the geodatabase
     for table, atts in svmp_table_info.items():
+        # Create Table object for each source table in the svmp geodatabase
         svmp_tables[table] = Table(svmp_gdb, table, atts["fields"])
+        # If table is missing from geodatabase, add to missing tables list
         if not svmp_tables[table].exists:
             missing_tables.append(table)
         # print svmp_tables[table].table
@@ -178,12 +182,23 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         # print svmp_tables[table].exists
         # print svmp_tables[table].df
 
+    # Error check for missing tables
     if not arcpy.Exists(os.path.normpath(os.path.join(svmp_gdb, utils.samppolyFC))):
         missing_tables.append(utils.samppolyFC)
-
-    # Error check for missing tables
     if missing_tables:
         print ",".join(missing_tables)
+
+    samples_df = svmp_tables[utils.sitesamplesTbl].df
+    print samples_df.describe()
+    print samples_df.dtypes
+    print samples_df[utils.datesampCol]
+    print samples_df[survey_year]
+    # print samples_df[samples_df[utils.datesampCol].year]
+    # print samples_df[(samples_df.site_visit_id.str.contains(survey_year))]
+    # samples_df = samples_df[(samples_df.site_visit_id.str.contains('2015'))]
+    # print svmp_tables[utils.sitesamplesTbl].df
+
+
 
 
 
