@@ -37,6 +37,9 @@ segmentsTbl = 'segments'
 #Feature Classes
 samppolyFC = 'samp_polygons'
 
+# Filter for Sample Status -- only these are used for statistics calcs
+sampstat4stats = ["sampled","exception"]
+
 
 def unique_values(table, field):
     # Get list of all unique values in a field

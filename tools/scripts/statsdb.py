@@ -7,6 +7,7 @@ __author__ = 'Allison Bailey, Sound GIS'
 # ArcGIS version 10.4.1
 
 import numpy as np
+import datetime
 import pandas as pd
 import svmpUtils as utils
 import arcpy
@@ -112,12 +113,24 @@ class Table(object):
 def make_sampleList(svmp_gdb, survey_year, sites_file, study, samp_sel):
     pass
 
+def paramstr2list(param,delim=";"):
+    if param:
+        return param.split(";")
+    else:
+        return []
 
 def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel):
     # Main function to run code
 
     # For debugging -- print the input parameters
     # print_params([transect_gdb,svmp_gdb,stats_gdb,survey_year,veg_code,sites_file,study,samp_sel])
+
+    study_list = paramstr2list(study)
+    sampsel_list = paramstr2list(samp_sel)
+
+    print study_list
+    print sampsel_list
+
 
     # Attributes for SVMP source tables:
     # site_samples, study_associations, transects, segments, surveys, veg_occur
@@ -188,15 +201,35 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     if missing_tables:
         print ",".join(missing_tables)
 
+    # Testing extracts from site samples table
     samples_df = svmp_tables[utils.sitesamplesTbl].df
+    studies_df = svmp_tables[utils.studyassociationsTbl].df
+    print studies_df.describe()
     print samples_df.describe()
     print samples_df.dtypes
-    print samples_df[utils.datesampCol]
-    print samples_df[survey_year]
-    # print samples_df[samples_df[utils.datesampCol].year]
-    # print samples_df[(samples_df.site_visit_id.str.contains(survey_year))]
-    # samples_df = samples_df[(samples_df.site_visit_id.str.contains('2015'))]
-    # print svmp_tables[utils.sitesamplesTbl].df
+    # # Create a new column with just year -- not needed, can just query date column directly
+    # samples_df['year'] = samples_df[utils.datesampCol].dt.year
+    # Filter for survey year from date_samp_start
+    samples_df = samples_df[(samples_df[utils.datesampCol].dt.year == int(survey_year))]
+    print samples_df
+    # Filter for samp_status ("sampled" or "exception")
+    samples_df = samples_df[(samples_df[utils.sampstatCol].isin(utils.sampstat4stats))]
+    print samples_df
+    # Filter for samp_sel (optional parameter)
+    if sampsel_list:
+        samples_df = samples_df[(samples_df[utils.sampselCol].isin(sampsel_list))]
+    print samples_df
+    # Filter for study (optional parameter)
+    if study_list:
+        # Filter studies data frame with list of studies
+        studies_df = studies_df[(studies_df[utils.studycodeCol].isin(study_list))]
+        #samples_df = pd.merge(samples_df, studies_df, on=utils.sampidCol, how='left')
+        # Select samples that correspond to only those studies
+        samples_df = samples_df[(samples_df[utils.sampidCol].isin(studies_df[utils.sampidCol]))]
+        print studies_df
+
+    print samples_df
+
 
 
 
@@ -230,11 +263,13 @@ if __name__ == '__main__':
 
     # Input parameter 7: Study or Studies to Be Processed -- OPTIONAL
     # Returned from ArcToolbox as a semi-colon separated string "CityBham;DNRparks;Elwha"
-    study = ""
+    study = "SVMPsw;Stressor"
+    # study = ""
 
     # Input parameter 8: Vegetation Type to be Processed -- OPTIONAL
     # Returned from ArcToolbox as a semi-colon separated string "SRS;STR;SUBJ"
-    samp_sel = ""
+    samp_sel = "SRS;STR"
+    # samp_sel = ""
 
     main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel)
 
