@@ -119,6 +119,13 @@ def paramstr2list(param,delim=";"):
     else:
         return []
 
+def make_sitelist(sites_file):
+    # Get all lines from input file without leading or trailing whitespace
+    # and omit lines that are just whitespace
+    site_list = [line.strip() for line in open(sites_file,'r') if not line.isspace()]
+    return site_list
+
+
 def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel):
     # Main function to run code
 
@@ -179,7 +186,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             },
     }
 
-
     svmp_tables = {} # Dictionary to hold all the source table objects
     # Create the table objects for each table in the dictionary
     missing_tables = [] # List to identify tables that are missing from the geodatabase
@@ -230,6 +236,15 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     print samples_df
 
+    # Filter for site_code (using optional list of sites file)
+    if sites_file:
+        # Generate list of sites from text file
+        site_codes = make_sitelist(sites_file)
+        samples_df = samples_df[(samples_df[utils.sitecodeCol].isin(site_codes))]
+
+    print samples_df
+
+
 
 
 
@@ -253,13 +268,14 @@ if __name__ == '__main__':
     stats_gdb = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
 
     # Input parameter 4: Survey Year to be Processed -- REQUIRED
-    survey_year = "2015"
+    survey_year = "2014" # "2015"
 
     # Input parameter 5: Vegetation Type to be Processed -- REQUIRED
     veg_code = "nativesg"
 
     # Input parameter 6: List of Sites file -- OPTIONAL
     sites_file = ""
+    sites_file = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
 
     # Input parameter 7: Study or Studies to Be Processed -- OPTIONAL
     # Returned from ArcToolbox as a semi-colon separated string "CityBham;DNRparks;Elwha"
