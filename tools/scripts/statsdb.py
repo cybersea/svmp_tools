@@ -125,6 +125,9 @@ def make_sitelist(sites_file):
     site_list = [line.strip() for line in open(sites_file,'r') if not line.isspace()]
     return site_list
 
+# General message accumulator
+def msg(msg):
+    arcpy.AddMessage(msg)
 
 def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel):
     # Main function to run code
@@ -132,17 +135,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # For debugging -- print the input parameters
     # print_params([transect_gdb,svmp_gdb,stats_gdb,survey_year,veg_code,sites_file,study,samp_sel])
 
-    study_list = paramstr2list(study)
-    sampsel_list = paramstr2list(samp_sel)
-
-    print study_list
-    print sampsel_list
-
 
     # Attributes for SVMP source tables:
     # site_samples, study_associations, transects, segments, surveys, veg_occur
     svmp_table_info = {
-        utils.sitesamplesTbl :
+        utils.sitesamplesTbl:
             {"fields": [
                 utils.sampidCol,
                 utils.sitecodeCol,
@@ -152,7 +149,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 utils.sitevisitidCol,
                 ]
             },
-        utils.studyassociationsTbl :
+        utils.studyassociationsTbl:
             {"fields": [
                 utils.sampidCol,
                 utils.studycodeCol,
@@ -207,48 +204,78 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     if missing_tables:
         print ",".join(missing_tables)
 
+    #-----------  Filter based on User input parameters -------------------------------
+    # ---- Generate List of Samples to be processed
     # Testing extracts from site samples table
+    # Data frames for site_samples and study_associations tables
     samples_df = svmp_tables[utils.sitesamplesTbl].df
     studies_df = svmp_tables[utils.studyassociationsTbl].df
-    print studies_df.describe()
-    print samples_df.describe()
-    print samples_df.dtypes
-    # # Create a new column with just year -- not needed, can just query date column directly
-    # samples_df['year'] = samples_df[utils.datesampCol].dt.year
-    # Filter for survey year from date_samp_start
-    samples_df = samples_df[(samples_df[utils.datesampCol].dt.year == int(survey_year))]
-    print samples_df
-    # Filter for samp_status ("sampled" or "exception")
-    samples_df = samples_df[(samples_df[utils.sampstatCol].isin(utils.sampstat4stats))]
-    print samples_df
-    # Filter for samp_sel (optional parameter)
-    if sampsel_list:
-        samples_df = samples_df[(samples_df[utils.sampselCol].isin(sampsel_list))]
-    print samples_df
-    # Filter for study (optional parameter)
-    if study_list:
-        # Filter studies data frame with list of studies
-        studies_df = studies_df[(studies_df[utils.studycodeCol].isin(study_list))]
-        #samples_df = pd.merge(samples_df, studies_df, on=utils.sampidCol, how='left')
-        # Select samples that correspond to only those studies
-        samples_df = samples_df[(samples_df[utils.sampidCol].isin(studies_df[utils.sampidCol]))]
-        print studies_df
-
-    print samples_df
-
-    # Filter for site_code (using optional list of sites file)
+    # Create lists from optional input parameters
+    study_list = paramstr2list(study)
+    sampsel_list = paramstr2list(samp_sel)
     if sites_file:
         # Generate list of sites from text file
         site_codes = make_sitelist(sites_file)
-        samples_df = samples_df[(samples_df[utils.sitecodeCol].isin(site_codes))]
+    else:
+        site_codes = []
+
+    # print studies_df.describe()
+    # print samples_df.describe()
+    # print samples_df.dtypes
+    # # Create a new column with just year -- not needed, can just query date column directly
+    # samples_df['year'] = samples_df[utils.datesampCol].dt.year
+    # Filter for survey year from date_samp_start
+    samples_df = samples_df[samples_df[utils.datesampCol].dt.year == int(survey_year)]
+    # Filter for samp_status ("sampled" or "exception")
+    samples_df = samples_df[samples_df[utils.sampstatCol].isin(utils.sampstat4stats)]
+    # Filter for samp_sel (optional parameter)
+    if sampsel_list:
+        samples_df = samples_df[samples_df[utils.sampselCol].isin(sampsel_list)]
+    # Filter for study (optional parameter)
+    if study_list:
+        # Filter studies data frame with list of studies
+        studies_df = studies_df[studies_df[utils.studycodeCol].isin(study_list)]
+        #samples_df = pd.merge(samples_df, studies_df, on=utils.sampidCol, how='left')  # example join - not used
+        # Select samples that correspond to only those studies
+        samples_df = samples_df[samples_df[utils.sampidCol].isin(studies_df[utils.sampidCol])]
+    # Filter for site_code (using optional list of sites file)
+    if site_codes:
+        samples_df = samples_df[samples_df[utils.sitecodeCol].isin(site_codes)]
 
     print samples_df
+    #-----------  END Filter based on User input parameters -------------------------------
 
-
-
-
-
-
+    # ----------- Create groups of data for transect processing -------------
+    vegoccur_df = svmp_tables[utils.vegoccurTbl].df
+    #----------- present
+    # Records from veg_occur table that have the veg_code = "present"
+    vegp_df = vegoccur_df[(vegoccur_df[veg_code].isin(["present"]))]
+    # print vegp_df
+    # Records in samples dataframe that have veg present
+    samples_vegp_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegp_df[utils.sitevisitidCol])]
+    # Narrow to samples that have veg present, and samp_sel <> "SUBJ"
+    samples_vegp_df = samples_vegp_df[~samples_vegp_df[utils.sampselCol].isin(["SUBJ"])]
+    # print samples_vegp_df
+    #---------- absent/trace
+    # Records from veg_occur table that have veg_code = "absent" or "trace"
+    vegat_df = vegoccur_df[vegoccur_df[veg_code].isin(["absent","trace"])]
+    # print vegat_df
+    # Records from samples dataframe where veg is absent or trace
+    samples_vegat_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegat_df[utils.sitevisitidCol])]
+    # print samples_vegat_df
+    # Veg absent/trace and samp_sel = "SUBJ"
+    samples_vegat_subj_df = samples_vegat_df[samples_vegat_df[utils.sampselCol].isin(["SUBJ"])]
+    # print samples_vegat_subj_df
+    # Veg absent/trace and samp_sel <> "SUBJ"
+    samples_vegat_notsubj_df = samples_vegat_df[~samples_vegat_df[utils.sampselCol].isin(["SUBJ"])]
+    # print samples_vegat_notsubj_df
+    # Veg absent/trace and samp_sel <> "SUBJ" with transects
+    transects_df = svmp_tables[utils.transectsTbl].df
+    samples_vegat_notsubj_tsect_df = samples_vegat_notsubj_df[samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
+    print samples_vegat_notsubj_tsect_df
+    # Veg absent/trace and samp_sel <> "SUBJ" without transects
+    samples_vegat_notsubj_notsect_df = samples_vegat_notsubj_df[~samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
+    print samples_vegat_notsubj_notsect_df
 
 
     # Get Source Data Tables
@@ -275,17 +302,17 @@ if __name__ == '__main__':
 
     # Input parameter 6: List of Sites file -- OPTIONAL
     sites_file = ""
-    sites_file = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
+    # sites_file = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
 
     # Input parameter 7: Study or Studies to Be Processed -- OPTIONAL
     # Returned from ArcToolbox as a semi-colon separated string "CityBham;DNRparks;Elwha"
-    study = "SVMPsw;Stressor"
-    # study = ""
+    # study = "SVMPsw;Stressor"
+    study = ""
 
     # Input parameter 8: Vegetation Type to be Processed -- OPTIONAL
     # Returned from ArcToolbox as a semi-colon separated string "SRS;STR;SUBJ"
-    samp_sel = "SRS;STR"
-    # samp_sel = ""
+    # samp_sel = "SRS;STR;SUBJ"
+    samp_sel = ""
 
     main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel)
 
