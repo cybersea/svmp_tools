@@ -27,6 +27,8 @@ def make_sitelist(sites_file):
 def msg(msg):
     arcpy.AddMessage(msg)
 
+class SampleFilters(object):
+
 class Sample(object):
     """ Represents an individual Site Sample
 
@@ -38,6 +40,11 @@ class Sample(object):
     samp_sel -- sample selection method for the sample
     sample_poly -- sample polygon
     transects -- transects associated with the sample
+    stats_group -- identifies the type of stats to be calculated
+        site_transect - calculate site and transect stats
+        transect - calculate transect stats only; assign site stats as zero/no data
+        none - no transect results; assign site results as zero/no data
+
 
     """
 
@@ -61,13 +68,14 @@ class Survey(object):
 
     Properties:
     id -- survey identifier
+    surveystat -- survey status
     maxdepflag -- maximum depth flag
     mindepflag -- minimum depth flag
 
     """
 
 class SamplePoly(object):
-    """ Represents and individual sample polygon
+    """ Represents an individual sample polygon
 
     Properties:
     id -- sample polygon identifier (site_samp_id)
@@ -110,7 +118,7 @@ class Table(object):
             return None
 
 
-def make_sampleList(svmp_gdb, survey_year, sites_file, study, samp_sel):
+def filter_samples(svmp_gdb, survey_year, sites_file, study, samp_sel):
     pass
 
 def paramstr2list(param,delim=";"):
@@ -134,6 +142,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     # For debugging -- print the input parameters
     # print_params([transect_gdb,svmp_gdb,stats_gdb,survey_year,veg_code,sites_file,study,samp_sel])
+
 
 
     # Attributes for SVMP source tables:
@@ -171,6 +180,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         utils.surveysTbl:
             {"fields": [
                 utils.surveyidCol,
+                utils.surveystatCol,
                 utils.maxdepflagCol,
                 utils.mindepflagCol,
                 ]
@@ -210,7 +220,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # Data frames for site_samples and study_associations tables
     samples_df = svmp_tables[utils.sitesamplesTbl].df
     studies_df = svmp_tables[utils.studyassociationsTbl].df
-    # Create lists from optional input parameters
+
+    #-----  Create lists from optional input parameters
     study_list = paramstr2list(study)
     sampsel_list = paramstr2list(samp_sel)
     if sites_file:
@@ -218,6 +229,16 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         site_codes = make_sitelist(sites_file)
     else:
         site_codes = []
+
+    # Dictionary of filters used to select samples to process
+    filters = {
+        "year" : survey_year,
+        "samp_status" : utils.sampstat4stats,
+        "site_code" : site_codes,
+        "study_code" : study_list,
+        "samp_sel" : sampsel_list
+    }
+
 
     # print studies_df.describe()
     # print samples_df.describe()
@@ -255,14 +276,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     samples_vegp_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegp_df[utils.sitevisitidCol])]
     # Narrow to samples that have veg present, and samp_sel <> "SUBJ"
     samples_vegp_df = samples_vegp_df[~samples_vegp_df[utils.sampselCol].isin(["SUBJ"])]
-    # print samples_vegp_df
     #---------- absent/trace
     # Records from veg_occur table that have veg_code = "absent" or "trace"
     vegat_df = vegoccur_df[vegoccur_df[veg_code].isin(["absent","trace"])]
-    # print vegat_df
     # Records from samples dataframe where veg is absent or trace
     samples_vegat_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegat_df[utils.sitevisitidCol])]
-    # print samples_vegat_df
     # Veg absent/trace and samp_sel = "SUBJ"
     samples_vegat_subj_df = samples_vegat_df[samples_vegat_df[utils.sampselCol].isin(["SUBJ"])]
     # print samples_vegat_subj_df
@@ -272,10 +290,47 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # Veg absent/trace and samp_sel <> "SUBJ" with transects
     transects_df = svmp_tables[utils.transectsTbl].df
     samples_vegat_notsubj_tsect_df = samples_vegat_notsubj_df[samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
-    print samples_vegat_notsubj_tsect_df
     # Veg absent/trace and samp_sel <> "SUBJ" without transects
     samples_vegat_notsubj_notsect_df = samples_vegat_notsubj_df[~samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
-    print samples_vegat_notsubj_notsect_df
+
+    #---- Four groups of samples for stats calcs
+    print samples_vegp_df  # calc transect and site results
+    print samples_vegat_subj_df  # No calcs -- assign zero/no data values in site results
+    print samples_vegat_notsubj_tsect_df # calc transect results, no site results
+    print samples_vegat_notsubj_notsect_df # No calcs -- assign zero/no data values
+
+    # ----------- END of sample grouping -------------
+
+    # Grab transects and surveys needed for processing
+    transects_df = svmp_tables[utils.transectsTbl].df
+    segments_df = svmp_tables[utils.segmentsTbl].df
+    surveys_df = svmp_tables[utils.surveysTbl].df
+    # --- transects and surveys associated with veg present samples
+    transects_vegp_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegp_df[utils.sampidCol])]
+    print transects_vegp_df
+    segments_vegp_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegp_df[utils.transectidCol])]
+    print segments_vegp_df
+    surveys_vegp_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegp_df[utils.surveyidCol])]
+    print surveys_vegp_df
+    # remove survey_stats <> 'surveyed'
+    surveys_vegp_df = surveys_vegp_df[surveys_vegp_df[utils.surveystatCol].isin(["surveyed"])]
+    print surveys_vegp_df
+
+    # ---- transects and surveys associated with veg absent, non-SUBJ samples
+    transects_vegat_notsubj_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegat_notsubj_tsect_df[utils.sampidCol])]
+    print transects_vegat_notsubj_df
+    segments_vegat_notsubj_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegat_notsubj_df[utils.transectidCol])]
+    print segments_vegat_notsubj_df
+    surveys_vegat_notsubj_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegat_notsubj_df[utils.surveyidCol])]
+    print surveys_vegat_notsubj_df
+    # remove survey_stats <> 'surveyed'
+    surveys_vegat_notsubj_df = surveys_vegat_notsubj_df[surveys_vegat_notsubj_df[utils.surveystatCol].isin(["surveyed"])]
+    print surveys_vegat_notsubj_df
+
+
+
+
+
 
 
     # Get Source Data Tables
@@ -286,13 +341,15 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 if __name__ == '__main__':
 
     # Input parameter 1:  Geodatabase with individual transect point data -- REQUIRED
-    transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
+    # transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
+    transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_2014_2015.mdb"
 
     # Input parameter 2:  SVMP Geodatabase with Base Tables -- REQUIRED
     svmp_gdb = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815_AB.mdb"
 
     # Input parameter 3: Site Statistics Geodatabase with Template results tables -- REQUIRED
-    stats_gdb = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
+    #stats_gdb = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
+    stats_gdb = "Y:/projects/dnr_svmp2016/data/out/svmp_sitesdb_test.mdb"
 
     # Input parameter 4: Survey Year to be Processed -- REQUIRED
     survey_year = "2014" # "2015"

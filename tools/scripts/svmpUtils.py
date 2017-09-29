@@ -21,6 +21,7 @@ sampidCol = 'site_samp_id'
 datesampCol = 'date_samp_start'
 transectidCol = 'transect_id'
 surveyidCol = 'survey_id'
+surveystatCol = 'survey_status'
 maxdepflagCol = 'tran_maxd_qual'
 mindepflagCol = 'tran_mind_qual'
 
