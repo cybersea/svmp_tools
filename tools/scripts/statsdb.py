@@ -27,7 +27,19 @@ def make_sitelist(sites_file):
 def msg(msg):
     arcpy.AddMessage(msg)
 
-class SampleFilters(object):
+class SampleGroup(object):
+    """ Represents a group of samples to be processed together
+
+
+
+    """
+
+    def __init__(self, in_df, veg_df, stats_group):
+        self.in_df = in_df
+        self.veg_df = veg_df
+        self.stats_group = stats_group
+
+
 
 class Sample(object):
     """ Represents an individual Site Sample
@@ -118,8 +130,27 @@ class Table(object):
             return None
 
 
-def filter_samples(svmp_gdb, survey_year, sites_file, study, samp_sel):
-    pass
+def filter_samples(samp_df, stdy_df, filter):
+    # Filter dataframe of samples using a dictionary of filtering criteria
+    # filter for year to process
+    samp_df = samp_df[samp_df[utils.datesampCol].dt.year == int(filter["year"])]
+    # Filter for samp_status ("sampled" or "exception")
+    samp_df = samp_df[samp_df[utils.sampstatCol].isin(filter["samp_status"])]
+    # Filter for samp_sel (optional parameter)
+    if filter["samp_sel"]:
+        samp_df = samp_df[samp_df[utils.sampselCol].isin(filter["samp_sel"])]
+    # Filter for study (optional parameter)
+    if filter["study_code"]:
+        # Filter studies data frame with list of studies
+        stdy_df = stdy_df[stdy_df[utils.studycodeCol].isin(filter["study_code"])]
+        #samp_df = pd.merge(samp_df, stdy_df, on=utils.sampidCol, how='left')  # example join - not used
+        # Select samples that correspond to only those studies
+        samp_df = samp_df[samp_df[utils.sampidCol].isin(stdy_df[utils.sampidCol])]
+    # Filter for site_code (using optional list of sites file)
+    if filter["site_code"]:
+        samp_df = samp_df[samp_df[utils.sitecodeCol].isin(filter["site_code"])]
+
+    return samp_df
 
 def paramstr2list(param,delim=";"):
     if param:
@@ -142,8 +173,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     # For debugging -- print the input parameters
     # print_params([transect_gdb,svmp_gdb,stats_gdb,survey_year,veg_code,sites_file,study,samp_sel])
-
-
 
     # Attributes for SVMP source tables:
     # site_samples, study_associations, transects, segments, surveys, veg_occur
@@ -214,14 +243,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     if missing_tables:
         print ",".join(missing_tables)
 
-    #-----------  Filter based on User input parameters -------------------------------
-    # ---- Generate List of Samples to be processed
-    # Testing extracts from site samples table
-    # Data frames for site_samples and study_associations tables
-    samples_df = svmp_tables[utils.sitesamplesTbl].df
-    studies_df = svmp_tables[utils.studyassociationsTbl].df
-
-    #-----  Create lists from optional input parameters
+    #---------- Filtering Criteria -------------------------------
+    # Create lists from optional input parameters
     study_list = paramstr2list(study)
     sampsel_list = paramstr2list(samp_sel)
     if sites_file:
@@ -231,7 +254,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         site_codes = []
 
     # Dictionary of filters used to select samples to process
-    filters = {
+    filter = {
         "year" : survey_year,
         "samp_status" : utils.sampstat4stats,
         "site_code" : site_codes,
@@ -239,95 +262,76 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         "samp_sel" : sampsel_list
     }
 
-
-    # print studies_df.describe()
-    # print samples_df.describe()
-    # print samples_df.dtypes
-    # # Create a new column with just year -- not needed, can just query date column directly
-    # samples_df['year'] = samples_df[utils.datesampCol].dt.year
-    # Filter for survey year from date_samp_start
-    samples_df = samples_df[samples_df[utils.datesampCol].dt.year == int(survey_year)]
-    # Filter for samp_status ("sampled" or "exception")
-    samples_df = samples_df[samples_df[utils.sampstatCol].isin(utils.sampstat4stats)]
-    # Filter for samp_sel (optional parameter)
-    if sampsel_list:
-        samples_df = samples_df[samples_df[utils.sampselCol].isin(sampsel_list)]
-    # Filter for study (optional parameter)
-    if study_list:
-        # Filter studies data frame with list of studies
-        studies_df = studies_df[studies_df[utils.studycodeCol].isin(study_list)]
-        #samples_df = pd.merge(samples_df, studies_df, on=utils.sampidCol, how='left')  # example join - not used
-        # Select samples that correspond to only those studies
-        samples_df = samples_df[samples_df[utils.sampidCol].isin(studies_df[utils.sampidCol])]
-    # Filter for site_code (using optional list of sites file)
-    if site_codes:
-        samples_df = samples_df[samples_df[utils.sitecodeCol].isin(site_codes)]
-
+    #-----------  Create a dataframe of samples filtered based on User input parameters
+    samples_df = filter_samples(svmp_tables[utils.sitesamplesTbl].df, svmp_tables[utils.studyassociationsTbl].df, filter)
     print samples_df
-    #-----------  END Filter based on User input parameters -------------------------------
+
+    #-----------  END Filtering based on User input parameters -------------------------------
 
     # ----------- Create groups of data for transect processing -------------
     vegoccur_df = svmp_tables[utils.vegoccurTbl].df
-    #----------- present
-    # Records from veg_occur table that have the veg_code = "present"
-    vegp_df = vegoccur_df[(vegoccur_df[veg_code].isin(["present"]))]
-    # print vegp_df
-    # Records in samples dataframe that have veg present
-    samples_vegp_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegp_df[utils.sitevisitidCol])]
-    # Narrow to samples that have veg present, and samp_sel <> "SUBJ"
-    samples_vegp_df = samples_vegp_df[~samples_vegp_df[utils.sampselCol].isin(["SUBJ"])]
-    #---------- absent/trace
-    # Records from veg_occur table that have veg_code = "absent" or "trace"
-    vegat_df = vegoccur_df[vegoccur_df[veg_code].isin(["absent","trace"])]
-    # Records from samples dataframe where veg is absent or trace
-    samples_vegat_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegat_df[utils.sitevisitidCol])]
-    # Veg absent/trace and samp_sel = "SUBJ"
-    samples_vegat_subj_df = samples_vegat_df[samples_vegat_df[utils.sampselCol].isin(["SUBJ"])]
-    # print samples_vegat_subj_df
-    # Veg absent/trace and samp_sel <> "SUBJ"
-    samples_vegat_notsubj_df = samples_vegat_df[~samples_vegat_df[utils.sampselCol].isin(["SUBJ"])]
-    # print samples_vegat_notsubj_df
-    # Veg absent/trace and samp_sel <> "SUBJ" with transects
-    transects_df = svmp_tables[utils.transectsTbl].df
-    samples_vegat_notsubj_tsect_df = samples_vegat_notsubj_df[samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
-    # Veg absent/trace and samp_sel <> "SUBJ" without transects
-    samples_vegat_notsubj_notsect_df = samples_vegat_notsubj_df[~samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
 
-    #---- Four groups of samples for stats calcs
-    print samples_vegp_df  # calc transect and site results
-    print samples_vegat_subj_df  # No calcs -- assign zero/no data values in site results
-    print samples_vegat_notsubj_tsect_df # calc transect results, no site results
-    print samples_vegat_notsubj_notsect_df # No calcs -- assign zero/no data values
-
-    # ----------- END of sample grouping -------------
-
-    # Grab transects and surveys needed for processing
-    transects_df = svmp_tables[utils.transectsTbl].df
-    segments_df = svmp_tables[utils.segmentsTbl].df
-    surveys_df = svmp_tables[utils.surveysTbl].df
-    # --- transects and surveys associated with veg present samples
-    transects_vegp_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegp_df[utils.sampidCol])]
-    print transects_vegp_df
-    segments_vegp_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegp_df[utils.transectidCol])]
-    print segments_vegp_df
-    surveys_vegp_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegp_df[utils.surveyidCol])]
-    print surveys_vegp_df
-    # remove survey_stats <> 'surveyed'
-    surveys_vegp_df = surveys_vegp_df[surveys_vegp_df[utils.surveystatCol].isin(["surveyed"])]
-    print surveys_vegp_df
-
-    # ---- transects and surveys associated with veg absent, non-SUBJ samples
-    transects_vegat_notsubj_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegat_notsubj_tsect_df[utils.sampidCol])]
-    print transects_vegat_notsubj_df
-    segments_vegat_notsubj_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegat_notsubj_df[utils.transectidCol])]
-    print segments_vegat_notsubj_df
-    surveys_vegat_notsubj_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegat_notsubj_df[utils.surveyidCol])]
-    print surveys_vegat_notsubj_df
-    # remove survey_stats <> 'surveyed'
-    surveys_vegat_notsubj_df = surveys_vegat_notsubj_df[surveys_vegat_notsubj_df[utils.surveystatCol].isin(["surveyed"])]
-    print surveys_vegat_notsubj_df
-
-
+    samp_vegp = SampleGroup(samples_df, vegoccur_df,"ts")
+    # #----------- present
+    # # Records from veg_occur table that have the veg_code = "present"
+    # vegp_df = vegoccur_df[(vegoccur_df[veg_code].isin(["present"]))]
+    # # print vegp_df
+    # # Records in samples dataframe that have veg present
+    # samples_vegp_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegp_df[utils.sitevisitidCol])]
+    # # Narrow to samples that have veg present, and samp_sel <> "SUBJ"
+    # samples_vegp_df = samples_vegp_df[~samples_vegp_df[utils.sampselCol].isin(["SUBJ"])]
+    # #---------- absent/trace
+    # # Records from veg_occur table that have veg_code = "absent" or "trace"
+    # vegat_df = vegoccur_df[vegoccur_df[veg_code].isin(["absent","trace"])]
+    # # Records from samples dataframe where veg is absent or trace
+    # samples_vegat_df = samples_df[samples_df[utils.sitevisitidCol].isin(vegat_df[utils.sitevisitidCol])]
+    # # Veg absent/trace and samp_sel = "SUBJ"
+    # samples_vegat_subj_df = samples_vegat_df[samples_vegat_df[utils.sampselCol].isin(["SUBJ"])]
+    # # print samples_vegat_subj_df
+    # # Veg absent/trace and samp_sel <> "SUBJ"
+    # samples_vegat_notsubj_df = samples_vegat_df[~samples_vegat_df[utils.sampselCol].isin(["SUBJ"])]
+    # # print samples_vegat_notsubj_df
+    # # Veg absent/trace and samp_sel <> "SUBJ" with transects
+    # transects_df = svmp_tables[utils.transectsTbl].df
+    # samples_vegat_notsubj_tsect_df = samples_vegat_notsubj_df[samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
+    # # Veg absent/trace and samp_sel <> "SUBJ" without transects
+    # samples_vegat_notsubj_notsect_df = samples_vegat_notsubj_df[~samples_vegat_df[utils.sampidCol].isin(transects_df[utils.sampidCol])]
+    #
+    # #---- Four groups of samples for stats calcs
+    # print samples_vegp_df  # calc transect and site results
+    # print samples_vegat_subj_df  # No calcs -- assign zero/no data values in site results
+    # print samples_vegat_notsubj_tsect_df # calc transect results, no site results
+    # print samples_vegat_notsubj_notsect_df # No calcs -- assign zero/no data values
+    #
+    # # ----------- END of sample grouping -------------
+    #
+    # # Grab transects and surveys needed for processing
+    # transects_df = svmp_tables[utils.transectsTbl].df
+    # segments_df = svmp_tables[utils.segmentsTbl].df
+    # surveys_df = svmp_tables[utils.surveysTbl].df
+    # # --- transects and surveys associated with veg present samples
+    # transects_vegp_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegp_df[utils.sampidCol])]
+    # print transects_vegp_df
+    # segments_vegp_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegp_df[utils.transectidCol])]
+    # print segments_vegp_df
+    # surveys_vegp_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegp_df[utils.surveyidCol])]
+    # print surveys_vegp_df
+    # # remove survey_stats <> 'surveyed'
+    # surveys_vegp_df = surveys_vegp_df[surveys_vegp_df[utils.surveystatCol].isin(["surveyed"])]
+    # print surveys_vegp_df
+    #
+    # # ---- transects and surveys associated with veg absent, non-SUBJ samples
+    # transects_vegat_notsubj_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegat_notsubj_tsect_df[utils.sampidCol])]
+    # print transects_vegat_notsubj_df
+    # segments_vegat_notsubj_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegat_notsubj_df[utils.transectidCol])]
+    # print segments_vegat_notsubj_df
+    # surveys_vegat_notsubj_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegat_notsubj_df[utils.surveyidCol])]
+    # print surveys_vegat_notsubj_df
+    # # remove survey_stats <> 'surveyed'
+    # surveys_vegat_notsubj_df = surveys_vegat_notsubj_df[surveys_vegat_notsubj_df[utils.surveystatCol].isin(["surveyed"])]
+    # print surveys_vegat_notsubj_df
+    #
+    #
 
 
 
