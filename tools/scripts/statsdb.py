@@ -27,31 +27,44 @@ def make_sitelist(sites_file):
 def msg(msg):
     arcpy.AddMessage(msg)
 
+
 class SampleGroup(object):
     """ Represents a group of samples to be processed together
 
-    df -- dataframe with the samples in the group
-    group -- identifies grouping criteria used
+    veg_code -- vegetation code for analysis
+    group -- grouping criteria used
         p - veg type is present
         ats - veg type is absent or trace, samp_sel = SUBJ
         atnst - veg type is absent or trace, samp_sel <> SUBJ, transects exist
         atnsnt - veg type is absent/trace, samp_sel <> SUBJ, transects exist
-    stats -- identifies the type of stats to be calculated
+    stats -- type of stats to be calculated
         ts - calculate transect and site stats
         t - calculate transect stats only; assign site stats as zero/no data
         s - no transect results; assign site results as zero/no data
-
+    df -- dataframe of the samples in the group with attributes
+    ts_df -- data frame of the associated transects and surveys
+    samples -- a list of sample objects
     """
 
     def __init__(self, samp_df, svmp_tables, veg_code, group):
         self.veg_code = veg_code
         self.group = group
-        self.stats = "" # initialize variable before setting it in _samp_group
+        self.stats = "" # initialize stats type before setting it in _samp_group
+        # create samples and transects dataframes based on group criteria
         self.df = self._samp_group(samp_df, svmp_tables)
         self.ts_df = None # initialize transects dataframe
         if "t" in self.stats:
             self.ts_df = self._get_transects(svmp_tables)
 
+        # Import individual sample objects
+        self.samples = [] # list of associated sample objects
+        self.importSamples()
+        # Properties of the samples
+        self.sample_ids = self._sample_attrs('id')
+
+
+    def _sample_attrs(self, attr):
+        return [getattr(sample, attr) for sample in self.samples]
 
     def _samp_group(self, samp_df, svmp_tables):
         # Group the samples according to the vegetation occurrence, sample selection, and existence of transects
@@ -117,6 +130,35 @@ class SampleGroup(object):
         df = df[df[utils.surveystatCol].isin(["surveyed"])]
         return df
 
+    def importSamples(self):
+        """  Create Sample objects from a data frame of samples and associated attributes
+
+        Append these sample objects to a sample group
+
+        """
+        # # this approach will be helpful if need the other attributes
+        # for idx, row in self.df.iterrows():
+        #     id = row[utils.sampidCol]
+        #     my_sample = Sample(id)
+        #     self._addSample(my_sample)
+
+        # If only need id, convert to list and iterate
+        samples_list = self.df[utils.sampidCol].tolist()
+        # print samples_list
+        for s in samples_list:
+            transects_list = []
+            if self.ts_df is not None:
+                print s
+                transects_list = self.ts_df.loc[self.ts_df[utils.sampidCol] == s][utils.sampidCol].tolist()
+                print transects_list
+                # print self.ts_df.loc[self.ts_df[utils.sampidCol].isin([s])].all()
+            my_sample = Sample(s, transects_list)
+            self._addSample(my_sample)
+
+    def _addSample(self, sample):
+        """ Adds individual sample objects to the sample group"""
+        self.samples.append(sample)
+
 
 class Sample(object):
     """ Represents an individual Site Sample
@@ -125,15 +167,16 @@ class Sample(object):
     id -- sample identifier (site_samp_id)
     site_code -- site code
     site_visit_id -- identifier for the site visit (site_visit_id)
-    study_codes -- list of study codes that a sample is associated with (study_code)
     samp_sel -- sample selection method for the sample
     sample_poly -- sample polygon
     transects -- transects associated with the sample
 
     """
 
-    def __init__(self, id):
+    def __init__(self, id, transects_list):
         self.id = id
+        self.transects_list = transects_list
+
 
 class Transect(object):
     """ Represents an individual Transect
@@ -146,6 +189,11 @@ class Transect(object):
     mindepflag -- minimum depth flag
 
     """
+    def __init__(self, id, sample_id, surveys_list=[]):
+        self.id = id
+        self.sample_id = sample_id
+        self.surveys_list = surveys_list
+
 
 class Survey(object):
     """ Represents an individual Survey
@@ -157,6 +205,8 @@ class Survey(object):
     mindepflag -- minimum depth flag
 
     """
+    def __init__(self, id):
+        self.id = id
 
 class SamplePoly(object):
     """ Represents an individual sample polygon
@@ -165,6 +215,8 @@ class SamplePoly(object):
     id -- sample polygon identifier (site_samp_id)
 
     """
+    def __init__(self, id):
+        self.id = id
 
 def print_params(params):
     # Print out the the list of parameters
@@ -349,61 +401,32 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     # Veg present
     samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
-    print samp_vegp.df.describe()
+    # print samp_vegp.sample_ids
+    # print samp_vegp.df.describe()
     # print samp_vegp.df
     # print samp_vegp.stats
-    print samp_vegp.ts_df
+    # print samp_vegp.ts_df
+
+    # for idx, row in samp_vegp.ts_df.iterrows():
+    #     print row[utils.sampidCol],row[utils.transectidCol],row[utils.surveyidCol], row[utils.maxdepflagCol],row[utils.mindepflagCol]
 
     # Vegetation absent/trace, samp_sel = 'SUBJ'
     samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
-    print samp_vegats.ts_df
+    # print samp_vegats.ts_df
     # print samp_vegats.df
     # print samp_vegats.stats
 
     # Veg absent/trace, samp_sel <> 'SUBJ', transects
     samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
-    print samp_vegatnst.ts_df
+    # print samp_vegatnst.ts_df
     # print samp_vegatnst.df
     # print samp_vegatnst.stats
 
     # Veg absent/trace, samp_sel <> 'SUBJ', no transects
     samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
-    print samp_vegatnsnt.ts_df
+    # print samp_vegatnsnt.ts_df
     # print samp_vegatnsnt.df
     # print samp_vegatnsnt.stats
-
-    # ----------- END of sample grouping -------------
-    #
-    # # Grab transects and surveys needed for processing
-    # transects_df = svmp_tables[utils.transectsTbl].df
-    # segments_df = svmp_tables[utils.segmentsTbl].df
-    # surveys_df = svmp_tables[utils.surveysTbl].df
-    # # --- transects and surveys associated with veg present samples
-    # transects_vegp_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegp_df[utils.sampidCol])]
-    # print transects_vegp_df
-    # segments_vegp_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegp_df[utils.transectidCol])]
-    # print segments_vegp_df
-    # surveys_vegp_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegp_df[utils.surveyidCol])]
-    # print surveys_vegp_df
-    # # remove survey_stats <> 'surveyed'
-    # surveys_vegp_df = surveys_vegp_df[surveys_vegp_df[utils.surveystatCol].isin(["surveyed"])]
-    # print surveys_vegp_df
-    #
-    # # ---- transects and surveys associated with veg absent, non-SUBJ samples
-    # transects_vegat_notsubj_df = transects_df[transects_df[utils.sampidCol].isin(samples_vegat_notsubj_tsect_df[utils.sampidCol])]
-    # print transects_vegat_notsubj_df
-    # segments_vegat_notsubj_df = segments_df[segments_df[utils.transectidCol].isin(transects_vegat_notsubj_df[utils.transectidCol])]
-    # print segments_vegat_notsubj_df
-    # surveys_vegat_notsubj_df = surveys_df[surveys_df[utils.surveyidCol].isin(segments_vegat_notsubj_df[utils.surveyidCol])]
-    # print surveys_vegat_notsubj_df
-    # # remove survey_stats <> 'surveyed'
-    # surveys_vegat_notsubj_df = surveys_vegat_notsubj_df[surveys_vegat_notsubj_df[utils.surveystatCol].isin(["surveyed"])]
-    # print surveys_vegat_notsubj_df
-    #
-    #
-
-
-
 
 
     # Get Source Data Tables
