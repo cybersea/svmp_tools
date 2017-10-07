@@ -44,6 +44,7 @@ class SampleGroup(object):
     df -- dataframe of the samples in the group with attributes
     ts_df -- data frame of the associated transects and surveys
     samples -- a list of sample objects
+    sample_ids -- a list of sample ids for samples in the group
     """
 
     def __init__(self, samp_df, svmp_tables, veg_code, group):
@@ -54,21 +55,35 @@ class SampleGroup(object):
         self.df = self._samp_group(samp_df, svmp_tables)
         self.ts_df = None # initialize transects dataframe
         if "t" in self.stats:
-            self.ts_df = self._get_transects(svmp_tables)
+            self.ts_df = self._get_ts_df(svmp_tables)
 
         # Import individual sample objects
         self.samples = [] # list of associated sample objects
         self.importSamples()
         # Properties of the samples
-        self.sample_ids = self._sample_attrs('id')
 
+    def __repr__(self):
+        return repr((self.sample_ids, self.group, self.stats, self.veg_code))
+
+    @property
+    def sample_ids(self):
+        """ List of transect ids associated with the sample"""
+        return self._sample_attrs('id')
 
     def _sample_attrs(self, attr):
+        """ Fetch attributes from the samples in the group """
         return [getattr(sample, attr) for sample in self.samples]
 
     def _samp_group(self, samp_df, svmp_tables):
-        # Group the samples according to the vegetation occurrence, sample selection, and existence of transects
-        # Need the samples dataframe, veg_occur table and transect table
+        """
+        Filter samples according to the vegetation occurrence, sample selection, and existence of transects
+        Requires the samples dataframe, veg_occur table and transect table
+
+        :param samp_df:  pandas dataframe of site_samples table from svmp geodatabase
+        :param svmp_tables:  dictionary of source svmp tables
+        :return: pandas dataframe of samples in the group
+        """
+
         veg_df = svmp_tables[utils.vegoccurTbl].df
         tsect_df = svmp_tables[utils.transectsTbl].df
         # Vegetation Present
@@ -113,17 +128,20 @@ class SampleGroup(object):
             self.stats = "s"  # set stats calc type to transect
             return df
 
-    def _get_transects(self, svmp_tables):
-        # Get a dataframe with the transects and surveys associated with the sample group
-        # Need the grouped samples dataframe, and transects, segments, and surveys tables
+    def _get_ts_df(self, svmp_tables):
+        """
+        Get a dataframe with the transects and surveys associated with the sample group
+        Requires the grouped samples dataframe, and transects, segments, and surveys tables
+
+        :param svmp_tables: dictionary of source svmp tables
+        :return: pandas dataframe with transects and surveys
+
+        """
         tsect_df = svmp_tables[utils.transectsTbl].df
         seg_df = svmp_tables[utils.segmentsTbl].df
         svy_df = svmp_tables[utils.surveysTbl].df
         # Find all the transects that match the filtered set of samples
         transects = tsect_df[tsect_df[utils.sampidCol].isin(self.df[utils.sampidCol])]
-        # Find matching segments and surveys --- not used
-        # segments = seg_df[seg_df[utils.transectidCol].isin(transects[utils.transectidCol])]
-        # surveys = svy_df[svy_df[utils.surveyidCol].isin(segments[utils.surveyidCol])]
         # Merge join selected transects with segments to get associated surveys
         df = transects.merge(seg_df, on=utils.transectidCol).merge(svy_df, on=utils.surveyidCol)
         # Filter for survey_status = 'surveyed'
@@ -139,21 +157,39 @@ class SampleGroup(object):
         # # this approach will be helpful if need the other attributes
         # for idx, row in self.df.iterrows():
         #     id = row[utils.sampidCol]
-        #     my_sample = Sample(id)
-        #     self._addSample(my_sample)
 
         # If only need id, convert to list and iterate
         samples_list = self.df[utils.sampidCol].tolist()
-        # print samples_list
         for s in samples_list:
             transects_list = []
+            surveys_dict = {}
+            ts_dict = {}
+            # Get associated transects if they exist
             if self.ts_df is not None:
-                print s
-                transects_list = self.ts_df.loc[self.ts_df[utils.sampidCol] == s][utils.sampidCol].tolist()
-                print transects_list
-                # print self.ts_df.loc[self.ts_df[utils.sampidCol].isin([s])].all()
-            my_sample = Sample(s, transects_list)
+                transects_list = self._get_transects_list(s)
+                for t in transects_list:
+                    # Get surveys (and max/min dep flags) associated with each transect
+                    surveys_dict = self._get_surveys_dict(t)  # survey id (key), min/max dep flags (value as list)
+                    ts_dict[t] = surveys_dict # transect id (key), associated survey dictionary as value
+            my_sample = Sample(s, transects_list, ts_dict)
             self._addSample(my_sample)
+
+
+    def _get_transects_list(self, s_id):
+        """ get list of transects for a sample.  Requires dataframe with samples and transects
+        :param s_id: sample identifier
+        :return: list of transects
+        """
+        return self.ts_df.loc[self.ts_df[utils.sampidCol] == s_id][utils.transectidCol].unique().tolist()
+
+    def _get_surveys_dict(self, t_id):
+        """ get list of surveys for a transect.  Requires dataframe with transects, surveys and max/min dep flags
+        :param t_id: transect identifier
+        :return: dictionary with survey id (key), and max/min depth flags (values as list)
+        """
+        surveys_depths_df = self.ts_df.loc[self.ts_df[utils.transectidCol] == t_id][
+            [utils.surveyidCol, utils.maxdepflagCol, utils.mindepflagCol]]
+        return surveys_depths_df.set_index(utils.surveyidCol).T.to_dict('list')
 
     def _addSample(self, sample):
         """ Adds individual sample objects to the sample group"""
@@ -165,17 +201,47 @@ class Sample(object):
 
     Properties:
     id -- sample identifier (site_samp_id)
-    site_code -- site code
-    site_visit_id -- identifier for the site visit (site_visit_id)
-    samp_sel -- sample selection method for the sample
+    transects_list -- list of transects to be associated with the sample
+    transects -- a list of transect objects associated with the sample
+    transect_ids -- a list of transect ids associated with the sample
     sample_poly -- sample polygon
-    transects -- transects associated with the sample
-
     """
 
-    def __init__(self, id, transects_list):
+    def __init__(self, id, transects_list=[], ts_dict={}):
         self.id = id
         self.transects_list = transects_list
+        self.ts_dict = ts_dict
+
+        # Import individual transect objects
+        self.transects = [] # list of associated sample objects
+        self.importTransects()
+
+    def __repr__(self):
+        return repr((self.id, self.transect_ids))
+
+    @property
+    def transect_ids(self):
+        """ List of transect ids associated with the sample"""
+        return self._transect_attrs('id')
+
+    def _transect_attrs(self, attr):
+        """ Fetch attributes from the transects in the group """
+        return [getattr(transect, attr) for transect in self.transects]
+
+    def importTransects(self):
+        """ Create Transect objects from a list of transects
+         Add surveys to the transect objects using dictionary of transects and associated surveys
+
+        Append these transect objects to a sample
+        """
+        for t in self.transects_list:
+            my_transect = Transect(t, self.id)
+            my_transect.importSurveys(self.ts_dict[t])
+            self._addTransect(my_transect)
+
+    def _addTransect(self, transect):
+        """ Adds individual transect objects to the sample"""
+        self.transects.append(transect)
 
 
 class Transect(object):
@@ -189,10 +255,45 @@ class Transect(object):
     mindepflag -- minimum depth flag
 
     """
-    def __init__(self, id, sample_id, surveys_list=[]):
+    def __init__(self, id, sample_id):
         self.id = id
         self.sample_id = sample_id
-        self.surveys_list = surveys_list
+        self.surveys = []
+
+    def __repr__(self):
+        return repr(self.id)
+
+    @property
+    def survey_ids(self):
+        return self._survey_attrs('id')
+
+    @property
+    def maxdepflag(self):
+        return max(self._survey_attrs('maxdepflag'))
+
+    @property
+    def mindepflag(self):
+        return max(self._survey_attrs('maxdepflag'))
+
+    def _survey_attrs(self, attr):
+        """ Fetch list of attributes from the surveys in the transect """
+        return [getattr(survey, attr) for survey in self.surveys]
+
+    def importSurveys(self, survey_dict):
+        """
+        Create survey objects from a dictionary of survey ids and max/min depth flags
+        Append surveys to transect object
+
+        :param survey_dict: dictionary of survey ids (key) and list of max/min depth flags (value)
+        :return:
+        """
+        for s, depflags in survey_dict.items():
+            my_survey = Survey(s, depflags[0], depflags[1])
+            self._addSurvey(my_survey)
+
+    def _addSurvey(self, survey):
+        """ Adds individual survey objects to the transect"""
+        self.surveys.append(survey)
 
 
 class Survey(object):
@@ -205,8 +306,14 @@ class Survey(object):
     mindepflag -- minimum depth flag
 
     """
-    def __init__(self, id):
+    def __init__(self, id, maxdepflag, mindepflag):
         self.id = id
+        self.maxdepflag = maxdepflag
+        self.mindepflag = mindepflag
+
+    def __repr__(self):
+        repr((self.id, self.maxdepflag, self.mindepflag))
+
 
 class SamplePoly(object):
     """ Represents an individual sample polygon
@@ -218,11 +325,6 @@ class SamplePoly(object):
     def __init__(self, id):
         self.id = id
 
-def print_params(params):
-    # Print out the the list of parameters
-    for param in params:
-        if param:
-            msg(param)
 
 class Table(object):
     """ Represents a source SVMP data table
@@ -254,8 +356,19 @@ class Table(object):
             return None
 
 
+def print_params(params):
+    # Print out the the list of parameters
+    for param in params:
+        if param:
+            msg(param)
+
 def filter_samples(svmp_tables, filter):
-    # Filter dataframes to produce list of samples meeting the criteria
+    """ Filter dataframes to produce list of samples meeting the criteria
+
+    :param svmp_tables: dictionary of source svmp tables
+    :param filter: dictionary with filtering criteria for different elements or columns
+    :return:  pandas dataframe of samples filtered with the criteria
+    """
 
     # Source data Tables
     samp_df = svmp_tables[utils.sitesamplesTbl].df
@@ -283,20 +396,29 @@ def filter_samples(svmp_tables, filter):
     return samp_df
 
 def paramstr2list(param,delim=";"):
+    """ Convert an ESRI multichoice parameter value to a list"""
     if param:
         return param.split(";")
     else:
         return []
 
 def make_sitelist(sites_file):
-    # Get all lines from input file without leading or trailing whitespace
-    # and omit lines that are just whitespace
+    """ Create a list of sites from in input text file
+
+    Get all lines from input file without leading or trailing whitespace
+    and omit lines that are just whitespace
+
+    :param sites_file: text file with sites listed one per line
+    :return:  list of sites
+    """
+
     site_list = [line.strip() for line in open(sites_file,'r') if not line.isspace()]
     return site_list
 
-# General message accumulator
 def msg(msg):
+    """ General message accumulator"""
     arcpy.AddMessage(msg)
+
 
 def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel):
     # Main function to run code
@@ -394,21 +516,30 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     #-----------  Create a dataframe of samples filtered based on User input parameters
     samples_filtered_df = filter_samples(svmp_tables, filter)
-    # print samples_df
-    #-----------  END Filtering based on User input parameters -------------------------------
 
     # ----------- Create groups of samples and associated transects/surveys for processing -------------
 
     # Veg present
     samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
+    # print samp_vegp
+    # print samp_vegp.samples
+    # print samp_vegp.sample_ids
+    for sample in samp_vegp.samples:
+        print sample.id
+        # print sample.transect_ids
+        for transect in sample.transects:
+            print transect.id
+            print transect.maxdepflag, transect.mindepflag
+            print transect.survey_ids
+            for survey in transect.surveys:
+                print survey.maxdepflag, survey.mindepflag
+
+
     # print samp_vegp.sample_ids
     # print samp_vegp.df.describe()
     # print samp_vegp.df
     # print samp_vegp.stats
     # print samp_vegp.ts_df
-
-    # for idx, row in samp_vegp.ts_df.iterrows():
-    #     print row[utils.sampidCol],row[utils.transectidCol],row[utils.surveyidCol], row[utils.maxdepflagCol],row[utils.mindepflagCol]
 
     # Vegetation absent/trace, samp_sel = 'SUBJ'
     samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
