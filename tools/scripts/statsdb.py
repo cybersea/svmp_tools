@@ -183,12 +183,12 @@ class SampleGroup(object):
         return self.ts_df.loc[self.ts_df[utils.sampidCol] == s_id][utils.transectidCol].unique().tolist()
 
     def _get_surveys_dict(self, t_id):
-        """ get list of surveys for a transect.  Requires dataframe with transects, surveys and max/min dep flags
+        """ get list of surveys for a transect.  Requires dataframe with transects, surveys, max/min dep flags, site visit id
         :param t_id: transect identifier
         :return: dictionary with survey id (key), and max/min depth flags (values as list)
         """
         surveys_depths_df = self.ts_df.loc[self.ts_df[utils.transectidCol] == t_id][
-            [utils.surveyidCol, utils.maxdepflagCol, utils.mindepflagCol]]
+            [utils.surveyidCol, utils.maxdepflagCol, utils.mindepflagCol, utils.sitevisitidCol]]
         return surveys_depths_df.set_index(utils.surveyidCol).T.to_dict('list')
 
     def _addSample(self, sample):
@@ -284,11 +284,11 @@ class Transect(object):
         Create survey objects from a dictionary of survey ids and max/min depth flags
         Append surveys to transect object
 
-        :param survey_dict: dictionary of survey ids (key) and list of max/min depth flags (value)
+        :param survey_dict: dictionary of survey ids (key) and list of max/min depth flags and site visit (value)
         :return:
         """
-        for s, depflags in survey_dict.items():
-            my_survey = Survey(s, depflags[0], depflags[1])
+        for s, atts in survey_dict.items():
+            my_survey = Survey(s, atts[0], atts[1], atts[2])
             self._addSurvey(my_survey)
 
     def _addSurvey(self, survey):
@@ -301,15 +301,16 @@ class Survey(object):
 
     Properties:
     id -- survey identifier
-    surveystat -- survey status
     maxdepflag -- maximum depth flag
     mindepflag -- minimum depth flag
+    sitevisit -- site visit id
 
     """
-    def __init__(self, id, maxdepflag, mindepflag):
+    def __init__(self, id, maxdepflag, mindepflag, sitevisit):
         self.id = id
         self.maxdepflag = maxdepflag
         self.mindepflag = mindepflag
+        self.sitevisit = sitevisit
 
     def __repr__(self):
         repr((self.id, self.maxdepflag, self.mindepflag))
