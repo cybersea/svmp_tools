@@ -14,7 +14,11 @@ import arcpy
 import os
 
 def timeStamped(fname, fmt='{fname}_%Y%m%d_%H%M%S.csv'):
-    # Create time stamped filename
+    """ Create time stamped filename
+    :param fname: base file name
+    :param fmt: time-stamped filename as a format string (with a default of csv)
+    :return: time-stamped filenaame
+    """
     return datetime.datetime.now().strftime(fmt).format(fname=fname)
 
 def make_sitelist(sites_file):
@@ -22,6 +26,7 @@ def make_sitelist(sites_file):
     # and omit lines that are just whitespace
     site_list = [line.strip() for line in open(sites_file,'r') if not line.isspace()]
     return site_list
+
 
 # General message accumulator
 def msg(msg):
@@ -171,9 +176,9 @@ class SampleGroup(object):
                     # Get surveys (and max/min dep flags) associated with each transect
                     surveys_dict = self._get_surveys_dict(t)  # survey id (key), min/max dep flags (value as list)
                     ts_dict[t] = surveys_dict # transect id (key), associated survey dictionary as value
-            my_sample = Sample(s, transects_list, ts_dict)
+            my_sample = Sample(s, ts_dict)
+            my_sample.importTransects()
             self._addSample(my_sample)
-
 
     def _get_transects_list(self, s_id):
         """ get list of transects for a sample.  Requires dataframe with samples and transects
@@ -207,14 +212,13 @@ class Sample(object):
     sample_poly -- sample polygon
     """
 
-    def __init__(self, id, transects_list=[], ts_dict={}):
+    def __init__(self, id, ts_dict):
         self.id = id
-        self.transects_list = transects_list
+        self.transects_list = ts_dict.keys()
         self.ts_dict = ts_dict
 
-        # Import individual transect objects
+        # individual transect objects
         self.transects = [] # list of associated sample objects
-        self.importTransects()
 
     def __repr__(self):
         return repr((self.id, self.transect_ids))
@@ -281,7 +285,7 @@ class Transect(object):
 
     def importSurveys(self, survey_dict):
         """
-        Create survey objects from a dictionary of survey ids and max/min depth flags
+        Create survey objects from a dictionary of survey ids (key) and max/min depth flags
         Append surveys to transect object
 
         :param survey_dict: dictionary of survey ids (key) and list of max/min depth flags and site visit (value)
@@ -311,9 +315,61 @@ class Survey(object):
         self.maxdepflag = maxdepflag
         self.mindepflag = mindepflag
         self.sitevisit = sitevisit
+        self.fc_name = "_".join((self.sitevisit,"transect","pt"))
+
 
     def __repr__(self):
         repr((self.id, self.maxdepflag, self.mindepflag))
+
+    # @property
+    # def pointfc(self):
+    #     """ The point feature class associated with the survey """
+    #     fc_list = utils.tables_fcs_list(self.gdb)
+    #     if self.fc_name in fc_list:
+    #         return os.path.join(self.gdb, self.fc_name)
+    #     else:
+    #         return None
+
+
+class SurveyFCPtGroup(object):
+    """ Represents a group of Survey Point Feature Classes within a geodatabase
+
+    """
+
+    def __init__(self, gdb, year):
+        self.gdb = gdb
+        self.year = year
+        self.fcs = self._get_fcs()
+        self.survey_fc = self._get_surveys()
+
+    def _get_fcs(self):
+        """ Returns a list of point transect feature classes within the geodatabase"""
+        fc_list = utils.tables_fcs_list(self.gdb)["fcs"]
+        return [fc for fc in fc_list if fc.endswith("transect_pt") and self.year in fc]
+
+    def _get_surveys(self):
+        """ Returns a dictionary of survey_ids (key) and
+            the feature class (value) the survey points are within
+        """
+        _survey_fc = {}
+        for fc in self.fcs:
+            survey_list = utils.unique_values(os.path.join(self.gdb, fc), utils.surveyidCol)
+            for survey in survey_list:
+                _survey_fc[survey] = fc
+        return _survey_fc
+
+class SurveyPts(object):
+    """ Represents a set of points for a survey"""
+
+    def __init__(self, gdb, fc, survey_id):
+        self.gdb = gdb
+        self.fc = fc
+        self.survey_id = survey_id
+
+    @property
+    def exists(self):
+        pass
+
 
 
 class SamplePoly(object):
@@ -518,22 +574,31 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     #-----------  Create a dataframe of samples filtered based on User input parameters
     samples_filtered_df = filter_samples(svmp_tables, filter)
 
-    # ----------- Create groups of samples and associated transects/surveys for processing -------------
+    # ------- List of available point feature classes and associated survey_ids -------
+    surveypt_fcs = SurveyFCPtGroup(transect_gdb, survey_year)
+    print surveypt_fcs.fcs
+    print surveypt_fcs.survey_fc
+
+
+
+    # ------- Create groups of samples and associated transects/surveys for processing --------
 
     # Veg present
-    samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
-    # print samp_vegp
-    # print samp_vegp.samples
-    # print samp_vegp.sample_ids
-    for sample in samp_vegp.samples:
-        print sample.id
-        # print sample.transect_ids
-        for transect in sample.transects:
-            print transect.id
-            print transect.maxdepflag, transect.mindepflag
-            print transect.survey_ids
-            for survey in transect.surveys:
-                print survey.maxdepflag, survey.mindepflag
+    # samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
+    # samp_vegp.importSamples()
+    # # print samp_vegp
+    # # print samp_vegp.samples
+    # # print samp_vegp.sample_ids
+    # for sample in samp_vegp.samples:
+    #     print sample.id
+    #     # print sample.transect_ids
+    #     for transect in sample.transects:
+    #         print transect.id
+    #         print transect.maxdepflag, transect.mindepflag
+    #         print transect.survey_ids
+    #         for survey in transect.surveys:
+    #             print survey.maxdepflag, survey.mindepflag
+    #             # survey.pointfc = transect_gdb
 
 
     # print samp_vegp.sample_ids

@@ -8,6 +8,7 @@ __author__ = 'Allison Bailey, Sound GIS'
 # with the SVMP Site Transect Analysis Tools
 
 import arcpy
+import numpy as np
 #---------------------------- CONSTANTS -----------------------------------#
 # Columns
 vegcodeCol = 'veg_code'
@@ -48,6 +49,10 @@ def unique_values(table, field):
     values = (row[0] for row in arcpy.da.SearchCursor(table, (field)))
     # pass list into set to get only unique values and return the result
     return sorted(set(values))
+
+def unique_values_np(table, field):
+    data = arcpy.da.TableToNumPyArray(table, [field])
+    return np.unique(data[field])
 
 def tables_fcs_list(gdb):
     # Get list of tables and feature classes in a geodatabase
