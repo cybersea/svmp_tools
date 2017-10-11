@@ -41,7 +41,7 @@ class SampleGroup(object):
         p - veg type is present
         ats - veg type is absent or trace, samp_sel = SUBJ
         atnst - veg type is absent or trace, samp_sel <> SUBJ, transects exist
-        atnsnt - veg type is absent/trace, samp_sel <> SUBJ, transects exist
+        atnsnt - veg type is absent/trace, samp_sel <> SUBJ, no transects
     stats -- type of stats to be calculated
         ts - calculate transect and site stats
         t - calculate transect stats only; assign site stats as zero/no data
@@ -72,7 +72,7 @@ class SampleGroup(object):
 
     @property
     def sample_ids(self):
-        """ List of transect ids associated with the sample"""
+        """ List of sample ids associated with the sample"""
         return self._sample_attrs('id')
 
     def _sample_attrs(self, attr):
@@ -176,8 +176,8 @@ class SampleGroup(object):
                     # Get surveys (and max/min dep flags) associated with each transect
                     surveys_dict = self._get_surveys_dict(t)  # survey id (key), min/max dep flags (value as list)
                     ts_dict[t] = surveys_dict # transect id (key), associated survey dictionary as value
-            my_sample = Sample(s, ts_dict)
-            my_sample.importTransects()
+            my_sample = Sample(s)
+            my_sample.importTransects(ts_dict)
             self._addSample(my_sample)
 
     def _get_transects_list(self, s_id):
@@ -188,7 +188,8 @@ class SampleGroup(object):
         return self.ts_df.loc[self.ts_df[utils.sampidCol] == s_id][utils.transectidCol].unique().tolist()
 
     def _get_surveys_dict(self, t_id):
-        """ get list of surveys for a transect.  Requires dataframe with transects, surveys, max/min dep flags, site visit id
+        """ get dictionary of surveys and attributes for a transect.
+        Requires dataframe with transects, surveys, max/min dep flags, site visit id
         :param t_id: transect identifier
         :return: dictionary with survey id (key), and max/min depth flags (values as list)
         """
@@ -206,16 +207,14 @@ class Sample(object):
 
     Properties:
     id -- sample identifier (site_samp_id)
-    transects_list -- list of transects to be associated with the sample
+    ts_dict -- dictionary of transect ids (key) with associated surveys dictionaries (survey id = key, attributes = value/list)
     transects -- a list of transect objects associated with the sample
     transect_ids -- a list of transect ids associated with the sample
     sample_poly -- sample polygon
     """
 
-    def __init__(self, id, ts_dict):
+    def __init__(self, id):
         self.id = id
-        self.transects_list = ts_dict.keys()
-        self.ts_dict = ts_dict
 
         # individual transect objects
         self.transects = [] # list of associated sample objects
@@ -232,15 +231,15 @@ class Sample(object):
         """ Fetch attributes from the transects in the group """
         return [getattr(transect, attr) for transect in self.transects]
 
-    def importTransects(self):
+    def importTransects(self, ts_dict):
         """ Create Transect objects from a list of transects
          Add surveys to the transect objects using dictionary of transects and associated surveys
 
         Append these transect objects to a sample
         """
-        for t in self.transects_list:
+        for t in ts_dict.keys():
             my_transect = Transect(t, self.id)
-            my_transect.importSurveys(self.ts_dict[t])
+            my_transect.importSurveys(ts_dict[t])
             self._addTransect(my_transect)
 
     def _addTransect(self, transect):
@@ -254,9 +253,10 @@ class Transect(object):
     Properties:
     id -- transect identifier (transect_id)
     sample_id -- associated sample identifier (site_samp_id)
-    surveys -- surveys that make up the transect
-    maxdepflag -- maximum depth flag
-    mindepflag -- minimum depth flag
+    surveys -- list of survey objects that make up the transect
+    survey_ids -- list of survey ids that make up the transect
+    maxdepflag -- maximum depth flag (maximum of maxdepflag values for associated surveys)
+    mindepflag -- minimum depth flag (maximum of mindepflag values for associated surveys)
 
     """
     def __init__(self, id, sample_id):
@@ -332,7 +332,7 @@ class Survey(object):
 
 
 class SurveyFCPtGroup(object):
-    """ Represents a group of Survey Point Feature Classes within a geodatabase
+    """ Represents a group of Survey Point Feature Classes within a geodatabase for a particular year
 
     """
 
