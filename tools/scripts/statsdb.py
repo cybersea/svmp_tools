@@ -13,6 +13,28 @@ import svmpUtils as utils
 import arcpy
 import os
 
+
+
+def create_template_ln(gdb, field_names, field_types, field_lengths):
+    """ Create a template feature class for the line features"""
+    fc_name = "template_ln"
+    fc_full = os.path.join(gdb, fc_name)
+    if arcpy.Exists(fc_full):
+        # remove feature class if it exists
+        arcpy.Delete_management(fc_full)
+    # Create a temporary feature class
+    tmp_fc = arcpy.CreateFeatureclass_management('in_memory', fc_name, "POLYLINE", spatial_reference = utils.sr)
+    # Add all the fields
+    for fname, typ, leng in zip(field_names, field_types, field_lengths):
+        if leng is not None:
+            arcpy.AddField_management(tmp_fc, field_name=fname, field_type=typ, field_length=leng)
+        else:
+            arcpy.AddField_management(tmp_fc, field_name=fname, field_type=typ)
+    # Create final feature class by using temporar feature class as template
+    arcpy.CreateFeatureclass_management(gdb, fc_name, template=tmp_fc)
+    arcpy.Delete_management(tmp_fc)
+    return fc_full
+
 def timeStamped(fname, fmt='{fname}_%Y%m%d_%H%M%S.csv'):
     """ Create time stamped filename
     :param fname: base file name
@@ -334,6 +356,12 @@ class Survey(object):
 class SurveyFCPtGroup(object):
     """ Represents a group of Survey Point Feature Classes within a geodatabase for a particular year
 
+    Properties:
+    gdb -- geodatabase with transect point feature classes
+    year -- year of interest
+    fcs -- list of all feature classes in geodatabase for that year
+    survey_fc -- dictionary of survey ids (key) and feature class (value)
+
     """
 
     def __init__(self, gdb, year):
@@ -361,15 +389,14 @@ class SurveyFCPtGroup(object):
 class SurveyPts(object):
     """ Represents a set of points for a survey"""
 
-    def __init__(self, gdb, fc, survey_id):
+    def __init__(self, gdb, survey_id, fc):
         self.gdb = gdb
-        self.fc = fc
         self.survey_id = survey_id
+        self.fc = fc
 
     @property
     def exists(self):
         pass
-
 
 
 class SamplePoly(object):
@@ -572,33 +599,135 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     }
 
     #-----------  Create a dataframe of samples filtered based on User input parameters
+    msg("Generating list of samples based on user parameters")
+    msg(filter)
     samples_filtered_df = filter_samples(svmp_tables, filter)
 
-    # ------- List of available point feature classes and associated survey_ids -------
-    surveypt_fcs = SurveyFCPtGroup(transect_gdb, survey_year)
-    print surveypt_fcs.fcs
-    print surveypt_fcs.survey_fc
+    # # ------- List of available point feature classes and associated survey_ids -------
+    # msg("Generating list of point transect features in {0}".format(transect_gdb))
+    # surveypt_fcs = SurveyFCPtGroup(transect_gdb, survey_year)
+    # # print surveypt_fcs.fcs
+    # # print surveypt_fcs.survey_fc
+
+    # -----------------  Fields for Transect Line feature classes
+    # Base Field names (without Object ID and Shape fields), field types, and lengths
+    base_field_names = [utils.ptidCol, utils.surveyidCol, utils.datetimesampCol, utils.depInterpCol, utils.videoCol,
+                        veg_code]
+    base_field_types = ["LONG", "TEXT", "DATE", "DOUBLE", "LONG", "LONG"]
+    base_field_lengths = [None, 25, None, None, None, None]
+    # Field names specific to point and line data sets
+    pt_field_names = ['OID@', 'SHAPE@XY'] + base_field_names
+    ln_field_names = ['OID@', 'SHAPE@'] + base_field_names
+    # Field definitions for base_fields
+
+
+    template_ln = create_template_ln(transect_gdb, base_field_names, base_field_types, base_field_lengths)
+    print template_ln
 
 
 
     # ------- Create groups of samples and associated transects/surveys for processing --------
 
     # Veg present
-    # samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
-    # samp_vegp.importSamples()
+    msg("Grouping samples for processing and calculation of results")
+    samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
     # # print samp_vegp
     # # print samp_vegp.samples
     # # print samp_vegp.sample_ids
-    # for sample in samp_vegp.samples:
-    #     print sample.id
-    #     # print sample.transect_ids
-    #     for transect in sample.transects:
-    #         print transect.id
-    #         print transect.maxdepflag, transect.mindepflag
-    #         print transect.survey_ids
-    #         for survey in transect.surveys:
-    #             print survey.maxdepflag, survey.mindepflag
-    #             # survey.pointfc = transect_gdb
+    for sample in samp_vegp.samples:
+        # print sample.id
+        # print sample.transect_ids
+        lnfc = sample.id + "_transect_ln"
+        lnfc_path = os.path.join(transect_gdb, lnfc)
+        if arcpy.Exists(lnfc_path):
+            # remove feature class if it exists
+            arcpy.Delete_management(lnfc_path)
+        arcpy.CreateFeatureclass_management(transect_gdb, lnfc, "Polyline", template_ln, spatial_reference = utils.sr)
+        for transect in sample.transects:
+            print transect.id
+            # print transect.maxdepflag, transect.mindepflag
+            # print transect.survey_ids
+            for survey in transect.surveys:
+                # print survey.maxdepflag, survey.mindepflag
+                # survey.pointfc = transect_gdb
+                # Get survey points from feature class
+
+                # ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
+                # ptfc_path = os.path.join(surveypt_fcs.gdb, ptfc) # full path to survey point feature class
+                #----- for testing ONLY ---------------
+                ptfc = "core004_2014_01_transect_pt"
+                ptfc_path = os.path.join(transect_gdb, ptfc) # full path to survey point feature class
+                #---------------------
+                delimited_svyidcol = arcpy.AddFieldDelimiters(ptfc_path, utils.surveyidCol)
+                where_clause = "{0} = '{1}'".format(delimited_svyidcol, survey.id)
+                # Get data from the point feature class as a NumPy array
+                survey_points_arr = arcpy.da.FeatureClassToNumPyArray(ptfc_path, pt_field_names, where_clause)
+                # Sort data by surveyid and date/time stamp
+                np.sort(survey_points_arr, order=[utils.surveyidCol, utils.datetimesampCol])
+
+                # Open cursor for line feature class
+                cursor_ln = arcpy.da.InsertCursor(lnfc_path, ln_field_names)
+                # Initialize variables
+                first_point = True
+                from_point = arcpy.Point()
+                to_point = arcpy.Point()
+                pt_attributes = ()
+
+                # Loop through array of survey points
+                my_list = survey_points_arr.tolist()
+                # for row in np.nditer(survey_points_arr, order="C"):
+                for row in my_list:
+                    print row
+                    # print row[utils.surveyidCol]
+                    if first_point:
+                        # from_point.X, from_point.Y = row['SHAPE@XY']
+                        # from_point.ID = int(row[utils.ptidCol])
+                        # pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], row[utils.datetimesampCol],
+                        #                  row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                        from_point.X, from_point.Y = row[1]
+                        from_point.ID = int(row[0])
+                        ptid = row[2]
+                        surveyid = row[3]
+                        dtsamp = row[4].replace(microsecond=0)
+                        dep = row[5]
+                        vid = row[6]
+                        veg = row[7]
+                        pt_attributes = (ptid,surveyid,dtsamp,dep,vid,veg)
+                        print pt_attributes
+                        print("X: {0}, Y: {1}".format(from_point.X, from_point.Y))
+                        first_point = False
+                    else:
+                        # to_point.X, to_point.Y = row['SHAPE@XY']
+                        # to_point.ID = int(row[utils.ptidCol])
+                        to_point.X, to_point.Y = row[1]
+                        to_point.ID = int(row[0])
+                        array = arcpy.Array([from_point, to_point])
+                        line_segment = arcpy.Polyline(array)
+                        print "line_segment type:" + line_segment.type
+                        line_attributes = (from_point.ID, line_segment) + pt_attributes
+                        # Insert a new row with the line segment and associated attributes into the feature class
+                        cursor_ln.insertRow(line_attributes)
+                        # The previous "to" point becomes the "from" point
+                        from_point.X = to_point.X
+                        from_point.Y = to_point.Y
+                        from_point.ID = to_point.ID
+                        # store the attributes for the current point to be used on next line segment
+                        # print row[utils.datetimesampCol].replace(microsecond=0)
+                        # pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], row[utils.datetimesampCol],
+                        #                  row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                        ptid = row[2]
+                        surveyid = row[3]
+                        dtsamp = row[4].replace(microsecond=0)
+                        dep = row[5]
+                        vid = row[6]
+                        veg = row[7]
+                        pt_attributes = (ptid,surveyid,dtsamp,dep,vid,veg)
+                        # print pt_attributes
+                        # print("X: {0}, Y: {1}".format(to_point.X, to_point.Y))
+
+                del cursor_ln
+
+
 
 
     # print samp_vegp.sample_ids
@@ -607,23 +736,23 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # print samp_vegp.stats
     # print samp_vegp.ts_df
 
-    # Vegetation absent/trace, samp_sel = 'SUBJ'
-    samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
-    # print samp_vegats.ts_df
-    # print samp_vegats.df
-    # print samp_vegats.stats
-
-    # Veg absent/trace, samp_sel <> 'SUBJ', transects
-    samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
-    # print samp_vegatnst.ts_df
-    # print samp_vegatnst.df
-    # print samp_vegatnst.stats
-
-    # Veg absent/trace, samp_sel <> 'SUBJ', no transects
-    samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
-    # print samp_vegatnsnt.ts_df
-    # print samp_vegatnsnt.df
-    # print samp_vegatnsnt.stats
+    # # Vegetation absent/trace, samp_sel = 'SUBJ'
+    # samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
+    # # print samp_vegats.ts_df
+    # # print samp_vegats.df
+    # # print samp_vegats.stats
+    #
+    # # Veg absent/trace, samp_sel <> 'SUBJ', transects
+    # samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
+    # # print samp_vegatnst.ts_df
+    # # print samp_vegatnst.df
+    # # print samp_vegatnst.stats
+    #
+    # # Veg absent/trace, samp_sel <> 'SUBJ', no transects
+    # samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
+    # # print samp_vegatnsnt.ts_df
+    # # print samp_vegatnsnt.df
+    # # print samp_vegatnsnt.stats
 
 
     # Get Source Data Tables
@@ -651,8 +780,9 @@ if __name__ == '__main__':
     veg_code = "nativesg"
 
     # Input parameter 6: List of Sites file -- OPTIONAL
-    sites_file = ""
+    # sites_file = ""
     # sites_file = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
+    sites_file = "Y:/projects/dnr_svmp2016/data/sitefiles/sites2014core004.txt"
 
     # Input parameter 7: Study or Studies to Be Processed -- OPTIONAL
     # Returned from ArcToolbox as a semi-colon separated string "CityBham;DNRparks;Elwha"

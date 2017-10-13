@@ -25,6 +25,10 @@ surveyidCol = 'survey_id'
 surveystatCol = 'survey_status'
 maxdepflagCol = 'tran_maxd_qual'
 mindepflagCol = 'tran_mind_qual'
+datetimesampCol = 'date_time_samp'
+depInterpCol = 'depth_interp'
+videoCol = 'video'
+ptidCol = 'ID'
 
 #Tables
 vegcodesTbl = 'veg_codes'
@@ -38,6 +42,9 @@ segmentsTbl = 'segments'
 
 #Feature Classes
 samppolyFC = 'samp_polygons'
+
+# Spatial Reference
+sr = arcpy.SpatialReference(2927) # NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Fee
 
 # Filter for Sample Status -- only these are used for statistics calcs
 sampstat4stats = ["sampled","exception"]
