@@ -499,6 +499,12 @@ def make_sitelist(sites_file):
     site_list = [line.strip() for line in open(sites_file,'r') if not line.isspace()]
     return site_list
 
+def del_fc(fc):
+    if arcpy.Exists(fc):
+        arcpy.Delete_management(fc)
+
+
+
 def msg(msg):
     """ General message accumulator"""
     arcpy.AddMessage(msg)
@@ -604,6 +610,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     samples_filtered_df = filter_samples(svmp_tables, filter)
 
     # # ------- List of available point feature classes and associated survey_ids -------
+    #  NOTE:  This is quite slow -- may be able to improve by re-writing with da.Walk approach
     # msg("Generating list of point transect features in {0}".format(transect_gdb))
     # surveypt_fcs = SurveyFCPtGroup(transect_gdb, survey_year)
     # # print surveypt_fcs.fcs
@@ -637,17 +644,17 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     for sample in samp_vegp.samples:
         # print sample.id
         # print sample.transect_ids
-        lnfc = sample.id + "_transect_ln"
+        lnfc = sample.id
         lnfc_path = os.path.join(transect_gdb, lnfc)
-        if arcpy.Exists(lnfc_path):
-            # remove feature class if it exists
-            arcpy.Delete_management(lnfc_path)
+        # remove feature class if it exists
+        del_fc(lnfc_path)
         arcpy.CreateFeatureclass_management(transect_gdb, lnfc, "Polyline", template_ln, spatial_reference = utils.sr)
         for transect in sample.transects:
-            print transect.id
+            # print transect.id
             # print transect.maxdepflag, transect.mindepflag
             # print transect.survey_ids
             for survey in transect.surveys:
+                print survey.id
                 # print survey.maxdepflag, survey.mindepflag
                 # survey.pointfc = transect_gdb
                 # Get survey points from feature class
@@ -677,8 +684,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 my_list = survey_points_arr.tolist()
                 # for row in np.nditer(survey_points_arr, order="C"):
                 for row in my_list:
-                    print row
-                    # print row[utils.surveyidCol]
                     if first_point:
                         # from_point.X, from_point.Y = row['SHAPE@XY']
                         # from_point.ID = int(row[utils.ptidCol])
@@ -688,13 +693,14 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                         from_point.ID = int(row[0])
                         ptid = row[2]
                         surveyid = row[3]
+                        # Microseconds in some timestamps throwing errors in insert cursor, so set to zero
                         dtsamp = row[4].replace(microsecond=0)
                         dep = row[5]
                         vid = row[6]
                         veg = row[7]
-                        pt_attributes = (ptid,surveyid,dtsamp,dep,vid,veg)
-                        print pt_attributes
-                        print("X: {0}, Y: {1}".format(from_point.X, from_point.Y))
+                        pt_attributes = (ptid, surveyid, dtsamp, dep, vid, veg)
+                        # print pt_attributes
+                        # print("X: {0}, Y: {1}".format(from_point.X, from_point.Y))
                         first_point = False
                     else:
                         # to_point.X, to_point.Y = row['SHAPE@XY']
@@ -703,7 +709,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                         to_point.ID = int(row[0])
                         array = arcpy.Array([from_point, to_point])
                         line_segment = arcpy.Polyline(array)
-                        print "line_segment type:" + line_segment.type
                         line_attributes = (from_point.ID, line_segment) + pt_attributes
                         # Insert a new row with the line segment and associated attributes into the feature class
                         cursor_ln.insertRow(line_attributes)
@@ -726,6 +731,18 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                         # print("X: {0}, Y: {1}".format(to_point.X, to_point.Y))
 
                 del cursor_ln
+
+        # Clip the Line segments
+        lnfc_clip = lnfc + "_clipped"
+        lnfc_clip_path = os.path.join(transect_gdb, lnfc_clip)
+        samppolyfc = os.path.join(svmp_gdb, utils.samppolyFC)
+        poly_layer = "sample_poly_feature"
+        del_fc(lnfc_clip_path)
+        # Select sample polygon for that sample
+        delimited_sampidcol = arcpy.AddFieldDelimiters(samppolyfc, utils.sampidCol)
+        where_clause = "{0} = '{1}'".format(delimited_sampidcol, sample.id)
+        arcpy.MakeFeatureLayer_management(samppolyfc, poly_layer, where_clause)
+        arcpy.Clip_analysis(lnfc_path, poly_layer, lnfc_clip_path)
 
 
 
