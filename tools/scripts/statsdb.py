@@ -44,8 +44,9 @@ def timeStamped(fname, fmt='{fname}_%Y%m%d_%H%M%S.csv'):
     return datetime.datetime.now().strftime(fmt).format(fname=fname)
 
 def make_sitelist(sites_file):
-    # Get all lines from input file without leading or trailing whitespace
-    # and omit lines that are just whitespace
+    """ Get all lines from input file without leading or trailing whitespace
+        and omit lines that are just whitespace
+    """
     site_list = [line.strip() for line in open(sites_file,'r') if not line.isspace()]
     return site_list
 
@@ -249,6 +250,16 @@ class Sample(object):
         """ List of transect ids associated with the sample"""
         return self._transect_attrs('id')
 
+    @property
+    def lnfc(self):
+        """ Feature class name for line feature class"""
+        return self.id
+
+    @property
+    def lnfc_clipped(self):
+        """ Feature class name for clipped line feature class"""
+        return self.lnfc + "_clipped"
+
     def _transect_attrs(self, attr):
         """ Fetch attributes from the transects in the group """
         return [getattr(transect, attr) for transect in self.transects]
@@ -267,6 +278,12 @@ class Sample(object):
     def _addTransect(self, transect):
         """ Adds individual transect objects to the sample"""
         self.transects.append(transect)
+
+    def make_line_fc(self, gdb, template_fc):
+        lnfc_path = os.path.join(gdb, self.lnfc)
+        del_fc(lnfc_path)
+        arcpy.CreateFeatureclass_management(gdb, self.lnfc, "Polyline", template_fc, spatial_reference = utils.sr)
+        return lnfc_path
 
 
 class Transect(object):
@@ -330,6 +347,10 @@ class Survey(object):
     maxdepflag -- maximum depth flag
     mindepflag -- minimum depth flag
     sitevisit -- site visit id
+    ptfc -- the name of the point feature class that contains the survey points
+    ptfc_full -- full path to the point feature class containing the survey points
+    ptfc_array -- Numpy array with survey points and attributes
+    ptfc_list -- the numpy array as a list of lists (each internal list corresponds to a row in the source data)
 
     """
     def __init__(self, id, maxdepflag, mindepflag, sitevisit):
@@ -338,19 +359,94 @@ class Survey(object):
         self.mindepflag = mindepflag
         self.sitevisit = sitevisit
         self.fc_name = "_".join((self.sitevisit,"transect","pt"))
+        self.ptfc = ""
+        self.ptfc_path = ""
+        self.ptfc_array = None
 
 
     def __repr__(self):
         repr((self.id, self.maxdepflag, self.mindepflag))
 
-    # @property
-    # def pointfc(self):
-    #     """ The point feature class associated with the survey """
-    #     fc_list = utils.tables_fcs_list(self.gdb)
-    #     if self.fc_name in fc_list:
-    #         return os.path.join(self.gdb, self.fc_name)
-    #     else:
-    #         return None
+    def set_ptfc_array(self, pt_field_names):
+        """ Create a numpy array of point locations and specified attributes
+            and set the ptfc_array property to that array
+        """
+        delimited_svyidcol = arcpy.AddFieldDelimiters(self.ptfc_path, utils.surveyidCol)
+        where_clause = "{0} = '{1}'".format(delimited_svyidcol, self.id)
+        # Get data from the point feature class as a NumPy array
+        points_array = arcpy.da.FeatureClassToNumPyArray(self.ptfc_path, pt_field_names, where_clause)
+        # Sort data by surveyid and date/time stamp
+        self.ptfc_array = np.sort(points_array, order=[utils.surveyidCol, utils.datetimesampCol])
+
+    @property
+    def ptfc_list(self):
+        """ Returns the point feature array as a list"""
+        if self.ptfc_array is not None:
+            return self.ptfc_array.tolist()
+        else:
+            return []
+
+    def make_line_feature(self, lnfc_path, ln_field_names):
+        """ Create a line feature from the point feature array (as a list) """
+        # Open cursor for line feature class
+        cursor_ln = arcpy.da.InsertCursor(lnfc_path, ln_field_names)
+        # Initialize variables
+        first_point = True
+        from_point = arcpy.Point()
+        to_point = arcpy.Point()
+        pt_attributes = ()
+
+        # Loop through array of survey points
+        # for row in np.nditer(self.ptfc_array, order="C"):
+        # Couldn't figure out how to manipulate the timestamp value from the array, so had to use list instead
+        for row in self.ptfc_list:
+            if first_point:
+                # from_point.X, from_point.Y = row['SHAPE@XY']
+                # from_point.ID = int(row[utils.ptidCol])
+                # pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], row[utils.datetimesampCol],
+                #                  row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                from_point.X, from_point.Y = row[1]
+                from_point.ID = int(row[0])
+                ptid = row[2]
+                surveyid = row[3]
+                # Microseconds in some timestamps throwing errors in insert cursor, so set to zero
+                dtsamp = row[4].replace(microsecond=0)
+                dep = row[5]
+                vid = row[6]
+                veg = row[7]
+                pt_attributes = (ptid, surveyid, dtsamp, dep, vid, veg)
+                # print pt_attributes
+                # print("X: {0}, Y: {1}".format(from_point.X, from_point.Y))
+                first_point = False
+            else:
+                # to_point.X, to_point.Y = row['SHAPE@XY']
+                # to_point.ID = int(row[utils.ptidCol])
+                to_point.X, to_point.Y = row[1]
+                to_point.ID = int(row[0])
+                array = arcpy.Array([from_point, to_point])
+                line_segment = arcpy.Polyline(array)
+                line_attributes = (from_point.ID, line_segment) + pt_attributes
+                # Insert a new row with the line segment and associated attributes into the feature class
+                cursor_ln.insertRow(line_attributes)
+                # The previous "to" point becomes the "from" point
+                from_point.X = to_point.X
+                from_point.Y = to_point.Y
+                from_point.ID = to_point.ID
+                # store the attributes for the current point to be used on next line segment
+                # print row[utils.datetimesampCol].replace(microsecond=0)
+                # pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], row[utils.datetimesampCol],
+                #                  row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                ptid = row[2]
+                surveyid = row[3]
+                dtsamp = row[4].replace(microsecond=0)
+                dep = row[5]
+                vid = row[6]
+                veg = row[7]
+                pt_attributes = (ptid, surveyid, dtsamp, dep, vid, veg)
+                # print pt_attributes
+                # print("X: {0}, Y: {1}".format(to_point.X, to_point.Y))
+
+        del cursor_ln
 
 
 class SurveyFCPtGroup(object):
@@ -385,6 +481,7 @@ class SurveyFCPtGroup(object):
             for survey in survey_list:
                 _survey_fc[survey] = fc
         return _survey_fc
+
 
 class SurveyPts(object):
     """ Represents a set of points for a survey"""
@@ -625,12 +722,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # Field names specific to point and line data sets
     pt_field_names = ['OID@', 'SHAPE@XY'] + base_field_names
     ln_field_names = ['OID@', 'SHAPE@'] + base_field_names
-    # Field definitions for base_fields
 
-
+    #----- Create the template feature class for the temporary transect lines
     template_ln = create_template_ln(transect_gdb, base_field_names, base_field_types, base_field_lengths)
-    print template_ln
-
 
 
     # ------- Create groups of samples and associated transects/surveys for processing --------
@@ -644,11 +738,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     for sample in samp_vegp.samples:
         # print sample.id
         # print sample.transect_ids
-        lnfc = sample.id
-        lnfc_path = os.path.join(transect_gdb, lnfc)
-        # remove feature class if it exists
-        del_fc(lnfc_path)
-        arcpy.CreateFeatureclass_management(transect_gdb, lnfc, "Polyline", template_ln, spatial_reference = utils.sr)
+        # Create an empty line feature class for the sample transects/surveys
+        lnfc_path = sample.make_line_fc(transect_gdb, template_ln)
         for transect in sample.transects:
             # print transect.id
             # print transect.maxdepflag, transect.mindepflag
@@ -658,82 +749,24 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 # print survey.maxdepflag, survey.mindepflag
                 # survey.pointfc = transect_gdb
                 # Get survey points from feature class
-
                 # ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
                 # ptfc_path = os.path.join(surveypt_fcs.gdb, ptfc) # full path to survey point feature class
-                #----- for testing ONLY ---------------
-                ptfc = "core004_2014_01_transect_pt"
-                ptfc_path = os.path.join(transect_gdb, ptfc) # full path to survey point feature class
+                #----- for testing ONLY, specify input point feature class ---------------
+                # ptfc = "core004_2014_01_transect_pt"
+                # ptfc_path = os.path.join(transect_gdb, ptfc) # full path to survey point feature class
+                survey.ptfc = "core004_2014_01_transect_pt"
+                survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
                 #---------------------
-                delimited_svyidcol = arcpy.AddFieldDelimiters(ptfc_path, utils.surveyidCol)
-                where_clause = "{0} = '{1}'".format(delimited_svyidcol, survey.id)
-                # Get data from the point feature class as a NumPy array
-                survey_points_arr = arcpy.da.FeatureClassToNumPyArray(ptfc_path, pt_field_names, where_clause)
-                # Sort data by surveyid and date/time stamp
-                np.sort(survey_points_arr, order=[utils.surveyidCol, utils.datetimesampCol])
 
-                # Open cursor for line feature class
-                cursor_ln = arcpy.da.InsertCursor(lnfc_path, ln_field_names)
-                # Initialize variables
-                first_point = True
-                from_point = arcpy.Point()
-                to_point = arcpy.Point()
-                pt_attributes = ()
+                # Get the NumPy array of the survey's points and specified attributes
+                # survey_points_arr = survey.ptfc_array(pt_field_names)
+                survey.set_ptfc_array(pt_field_names)
 
-                # Loop through array of survey points
-                my_list = survey_points_arr.tolist()
-                # for row in np.nditer(survey_points_arr, order="C"):
-                for row in my_list:
-                    if first_point:
-                        # from_point.X, from_point.Y = row['SHAPE@XY']
-                        # from_point.ID = int(row[utils.ptidCol])
-                        # pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], row[utils.datetimesampCol],
-                        #                  row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
-                        from_point.X, from_point.Y = row[1]
-                        from_point.ID = int(row[0])
-                        ptid = row[2]
-                        surveyid = row[3]
-                        # Microseconds in some timestamps throwing errors in insert cursor, so set to zero
-                        dtsamp = row[4].replace(microsecond=0)
-                        dep = row[5]
-                        vid = row[6]
-                        veg = row[7]
-                        pt_attributes = (ptid, surveyid, dtsamp, dep, vid, veg)
-                        # print pt_attributes
-                        # print("X: {0}, Y: {1}".format(from_point.X, from_point.Y))
-                        first_point = False
-                    else:
-                        # to_point.X, to_point.Y = row['SHAPE@XY']
-                        # to_point.ID = int(row[utils.ptidCol])
-                        to_point.X, to_point.Y = row[1]
-                        to_point.ID = int(row[0])
-                        array = arcpy.Array([from_point, to_point])
-                        line_segment = arcpy.Polyline(array)
-                        line_attributes = (from_point.ID, line_segment) + pt_attributes
-                        # Insert a new row with the line segment and associated attributes into the feature class
-                        cursor_ln.insertRow(line_attributes)
-                        # The previous "to" point becomes the "from" point
-                        from_point.X = to_point.X
-                        from_point.Y = to_point.Y
-                        from_point.ID = to_point.ID
-                        # store the attributes for the current point to be used on next line segment
-                        # print row[utils.datetimesampCol].replace(microsecond=0)
-                        # pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], row[utils.datetimesampCol],
-                        #                  row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
-                        ptid = row[2]
-                        surveyid = row[3]
-                        dtsamp = row[4].replace(microsecond=0)
-                        dep = row[5]
-                        vid = row[6]
-                        veg = row[7]
-                        pt_attributes = (ptid,surveyid,dtsamp,dep,vid,veg)
-                        # print pt_attributes
-                        # print("X: {0}, Y: {1}".format(to_point.X, to_point.Y))
-
-                del cursor_ln
+                # Create a line feature from the survey points
+                survey.make_line_feature(lnfc_path, ln_field_names)
 
         # Clip the Line segments
-        lnfc_clip = lnfc + "_clipped"
+        lnfc_clip = sample.lnfc + "_clipped"
         lnfc_clip_path = os.path.join(transect_gdb, lnfc_clip)
         samppolyfc = os.path.join(svmp_gdb, utils.samppolyFC)
         poly_layer = "sample_poly_feature"
