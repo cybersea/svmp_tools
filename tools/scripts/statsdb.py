@@ -30,7 +30,7 @@ def create_template_ln(gdb, field_names, field_types, field_lengths):
             arcpy.AddField_management(tmp_fc, field_name=fname, field_type=typ, field_length=leng)
         else:
             arcpy.AddField_management(tmp_fc, field_name=fname, field_type=typ)
-    # Create final feature class by using temporar feature class as template
+    # Create final feature class by using temporary feature class as template
     arcpy.CreateFeatureclass_management(gdb, fc_name, template=tmp_fc)
     arcpy.Delete_management(tmp_fc)
     return fc_full
@@ -230,15 +230,15 @@ class Sample(object):
 
     Properties:
     id -- sample identifier (site_samp_id)
-    ts_dict -- dictionary of transect ids (key) with associated surveys dictionaries (survey id = key, attributes = value/list)
     transects -- a list of transect objects associated with the sample
     transect_ids -- a list of transect ids associated with the sample
+    lnfc -- feature class name for line feature class
+    lnfc_clipped -- feature class name for clipped line feature class
     sample_poly -- sample polygon
     """
 
     def __init__(self, id):
         self.id = id
-
         # individual transect objects
         self.transects = [] # list of associated sample objects
 
@@ -279,12 +279,17 @@ class Sample(object):
         """ Adds individual transect objects to the sample"""
         self.transects.append(transect)
 
-    def make_line_fc(self, gdb, template_fc):
+    def make_line_fc(self, template_fc, gdb="in_memory" ):
         lnfc_path = os.path.join(gdb, self.lnfc)
         del_fc(lnfc_path)
         arcpy.CreateFeatureclass_management(gdb, self.lnfc, "Polyline", template_fc, spatial_reference = utils.sr)
         return lnfc_path
 
+    def clip_line_fc(self, poly_layer, gdb="in_memory" ):
+        lnfc_path = os.path.join(gdb, self.lnfc)
+        lnfc_clip_path = os.path.join(gdb, self.lnfc_clipped)
+        del_fc(lnfc_clip_path)
+        arcpy.Clip_analysis(lnfc_path, poly_layer, lnfc_clip_path)
 
 class Transect(object):
     """ Represents an individual Transect
@@ -386,6 +391,22 @@ class Survey(object):
         else:
             return []
 
+    @property
+    def maxdep(self):
+        pass
+
+    @property
+    def mindep(self):
+        pass
+
+    @property
+    def maxdep_veg(self):
+        pass
+
+    @property
+    def mindep_veg(self):
+        pass
+
     def make_line_feature(self, lnfc_path, ln_field_names):
         """ Create a line feature from the point feature array (as a list) """
         # Open cursor for line feature class
@@ -483,28 +504,35 @@ class SurveyFCPtGroup(object):
         return _survey_fc
 
 
-class SurveyPts(object):
-    """ Represents a set of points for a survey"""
-
-    def __init__(self, gdb, survey_id, fc):
-        self.gdb = gdb
-        self.survey_id = survey_id
-        self.fc = fc
-
-    @property
-    def exists(self):
-        pass
-
-
 class SamplePoly(object):
     """ Represents an individual sample polygon
 
     Properties:
     id -- sample polygon identifier (site_samp_id)
+    fc -- feature class full path
+    gdb -- geodatabase containing the feature class
+    feat_lyr -- an in-memory feature layer of the sample polygon
+
 
     """
-    def __init__(self, id):
+    def __init__(self, id, gdb):
         self.id = id
+        self.fc = os.path.join(gdb, utils.samppolyFC)
+        self.gdb = gdb
+        self.feat_lyr = self._make_feature_layer()
+
+    def _make_feature_layer(self):
+        """ Returns a feature layer of the sample polygon"""
+        poly_layer = self.id + "_fl"
+        # Select sample polygon for that sample
+        try:
+            delimited_sampidcol = arcpy.AddFieldDelimiters(self.fc, utils.sampidCol)
+            where_clause = "{0} = '{1}'".format(delimited_sampidcol, self.id)
+            arcpy.MakeFeatureLayer_management(self.fc, poly_layer, where_clause)
+            return poly_layer
+        except:
+            return None
+
 
 
 class Table(object):
@@ -576,10 +604,10 @@ def filter_samples(svmp_tables, filter):
     # Final filtered dataframe
     return samp_df
 
-def paramstr2list(param,delim=";"):
+def paramstr2list(param, delim=";"):
     """ Convert an ESRI multichoice parameter value to a list"""
     if param:
-        return param.split(";")
+        return param.split(delim)
     else:
         return []
 
@@ -599,7 +627,6 @@ def make_sitelist(sites_file):
 def del_fc(fc):
     if arcpy.Exists(fc):
         arcpy.Delete_management(fc)
-
 
 
 def msg(msg):
@@ -726,7 +753,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     #----- Create the template feature class for the temporary transect lines
     template_ln = create_template_ln(transect_gdb, base_field_names, base_field_types, base_field_lengths)
 
-
     # ------- Create groups of samples and associated transects/surveys for processing --------
 
     # Veg present
@@ -739,7 +765,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         # print sample.id
         # print sample.transect_ids
         # Create an empty line feature class for the sample transects/surveys
-        lnfc_path = sample.make_line_fc(transect_gdb, template_ln)
+        lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
         for transect in sample.transects:
             # print transect.id
             # print transect.maxdepflag, transect.mindepflag
@@ -759,23 +785,19 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 #---------------------
 
                 # Get the NumPy array of the survey's points and specified attributes
-                # survey_points_arr = survey.ptfc_array(pt_field_names)
                 survey.set_ptfc_array(pt_field_names)
 
                 # Create a line feature from the survey points
                 survey.make_line_feature(lnfc_path, ln_field_names)
 
-        # Clip the Line segments
-        lnfc_clip = sample.lnfc + "_clipped"
-        lnfc_clip_path = os.path.join(transect_gdb, lnfc_clip)
-        samppolyfc = os.path.join(svmp_gdb, utils.samppolyFC)
-        poly_layer = "sample_poly_feature"
-        del_fc(lnfc_clip_path)
-        # Select sample polygon for that sample
-        delimited_sampidcol = arcpy.AddFieldDelimiters(samppolyfc, utils.sampidCol)
-        where_clause = "{0} = '{1}'".format(delimited_sampidcol, sample.id)
-        arcpy.MakeFeatureLayer_management(samppolyfc, poly_layer, where_clause)
-        arcpy.Clip_analysis(lnfc_path, poly_layer, lnfc_clip_path)
+        # Get the associated sample polygon
+        sample_poly = SamplePoly(sample.id, svmp_gdb)
+        # Clip the line segments
+        sample.clip_line_fc(sample_poly.feat_lyr, transect_gdb)
+
+
+
+
 
 
 
