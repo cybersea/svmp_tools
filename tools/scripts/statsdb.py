@@ -12,6 +12,7 @@ import pandas as pd
 import svmpUtils as utils
 import arcpy
 import os
+import timeit
 
 
 
@@ -352,6 +353,7 @@ class Survey(object):
     maxdepflag -- maximum depth flag
     mindepflag -- minimum depth flag
     sitevisit -- site visit id
+    veg_code -- veg_code for the statistics for the survey
     ptfc -- the name of the point feature class that contains the survey points
     ptfc_full -- full path to the point feature class containing the survey points
     ptfc_array -- Numpy array with survey points and attributes
@@ -364,9 +366,11 @@ class Survey(object):
         self.mindepflag = mindepflag
         self.sitevisit = sitevisit
         self.fc_name = "_".join((self.sitevisit,"transect","pt"))
+        self.veg_code = ""
         self.ptfc = ""
         self.ptfc_path = ""
         self.ptfc_array = None
+        self.ptfc_df = None
 
 
     def __repr__(self):
@@ -383,6 +387,19 @@ class Survey(object):
         # Sort data by surveyid and date/time stamp
         self.ptfc_array = np.sort(points_array, order=[utils.surveyidCol, utils.datetimesampCol])
 
+    def set_ptfc_df(self, pt_field_names):
+        """ Create a numpy array of point locations and specified attributes
+            and set the ptfc_array property to that array
+        """
+        delimited_svyidcol = arcpy.AddFieldDelimiters(self.ptfc_path, utils.surveyidCol)
+        where_clause = "{0} = '{1}'".format(delimited_svyidcol, self.id)
+        df = pd.DataFrame([row for row in arcpy.da.SearchCursor(self.ptfc_path, pt_field_names, where_clause, )],
+                          columns=pt_field_names)
+        # Sort the dataframe by surveyid number and time stamp
+        # Note:  in later versions of pandas (0.17.0), this is deprecated and replaced by sort_values
+        df.sort([utils.surveyidCol, utils.datetimesampCol], inplace=True)
+        self.ptfc_df = df
+
     @property
     def ptfc_list(self):
         """ Returns the point feature array as a list"""
@@ -393,19 +410,89 @@ class Survey(object):
 
     @property
     def maxdep(self):
-        pass
+        """ Maximum (i.e., deepest) depth on the survey line, prior to clipping
+            Must have video = 1, and not be the null depth value (-9999)
+        """
+        if self.ptfc_df is not None:
+            df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)]
+            return df[utils.depInterpCol].min()
+        else:
+            return None
 
     @property
     def mindep(self):
-        pass
+        """ Minimum depth (i.e. shallowest) on the survey line, prior to clipping
+            Must have video = 1, and not be the null depth value (-9999)
+        """
+        if self.ptfc_df is not None:
+            df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)]
+            return df[utils.depInterpCol].max()
+        else:
+            return None
 
     @property
     def maxdep_veg(self):
-        pass
+        """ Maximum (i.e., deepest) depth of selected veg_cod the survey line, prior to clipping
+            Must have video = 1, and not be the null depth value (-9999)
+        """
+        if self.ptfc_df is not None:
+            df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
+                              & (self.ptfc_df[veg_code] == 1)]
+            return df[utils.depInterpCol].min()
+        else:
+            return None
 
     @property
     def mindep_veg(self):
-        pass
+        """ Maximum (i.e., deepest) depth of selected veg_cod the survey line, prior to clipping
+            Must have video = 1, and not be the null depth value (-9999)
+        """
+        if self.ptfc_df is not None:
+            df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
+                              & (self.ptfc_df[veg_code] == 1)]
+            return df[utils.depInterpCol].max()
+        else:
+            return None
+
+    def make_line_feature_df(self, lnfc_path, ln_field_names):
+        """ Create a line feature from the point feature data frame """
+        # Open cursor for line feature class
+        cursor_ln = arcpy.da.InsertCursor(lnfc_path, ln_field_names)
+        # Initialize variables
+        first_point = True
+        from_point = arcpy.Point()
+        to_point = arcpy.Point()
+        pt_attributes = ()
+
+        for index, row in self.ptfc_df.iterrows():
+            if first_point:
+                from_point.X, from_point.Y = row['SHAPE@XY']
+                from_point.ID = int(row[utils.ptidCol])
+                dtsamp = row[utils.datetimesampCol].replace(microsecond=0)
+                pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], dtsamp,
+                                 row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                # print pt_attributes
+                # print("X: {0}, Y: {1}".format(from_point.X, from_point.Y))
+                first_point = False
+            else:
+                to_point.X, to_point.Y = row['SHAPE@XY']
+                to_point.ID = int(row[utils.ptidCol])
+                array = arcpy.Array([from_point, to_point])
+                line_segment = arcpy.Polyline(array)
+                line_attributes = (from_point.ID, line_segment) + pt_attributes
+                # Insert a new row with the line segment and associated attributes into the feature class
+                cursor_ln.insertRow(line_attributes)
+                # The previous "to" point becomes the "from" point
+                from_point.X = to_point.X
+                from_point.Y = to_point.Y
+                from_point.ID = to_point.ID
+                # store the attributes for the current point to be used on next line segment
+                dtsamp = row[utils.datetimesampCol].replace(microsecond=0)
+                pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], dtsamp,
+                                 row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                # print pt_attributes
+                # print("X: {0}, Y: {1}".format(to_point.X, to_point.Y))
+
 
     def make_line_feature(self, lnfc_path, ln_field_names):
         """ Create a line feature from the point feature array (as a list) """
@@ -767,11 +854,12 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         # Create an empty line feature class for the sample transects/surveys
         lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
         for transect in sample.transects:
-            # print transect.id
+            print transect.id
             # print transect.maxdepflag, transect.mindepflag
             # print transect.survey_ids
             for survey in transect.surveys:
                 print survey.id
+                survey.veg_code = veg_code
                 # print survey.maxdepflag, survey.mindepflag
                 # survey.pointfc = transect_gdb
                 # Get survey points from feature class
@@ -784,11 +872,36 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
                 #---------------------
 
-                # Get the NumPy array of the survey's points and specified attributes
-                survey.set_ptfc_array(pt_field_names)
+                # Get pandas data frame of the survey's points and specified attributes
+                # start_time = timeit.default_timer()
+                survey.set_ptfc_df(pt_field_names)
+                print "Max depth: {}".format(survey.maxdep)
+                print "Min depth: {}".format(survey.mindep)
+                print "Max Veg depth: {}".format(survey.maxdep_veg)
+                print "Min Veg depth: {}".format(survey.mindep_veg)
 
-                # Create a line feature from the survey points
-                survey.make_line_feature(lnfc_path, ln_field_names)
+                # elapsed = timeit.default_timer() - start_time
+                # print "DataFrame creation time: {}".format(elapsed)
+                # Get the NumPy array of the survey's points and specified attributes
+                # start_time = timeit.default_timer()
+                # survey.set_ptfc_array(pt_field_names)
+                # # elapsed = timeit.default_timer() - start_time
+                # # print "Numpy array creation time: {}".format(elapsed)
+                # # print survey.ptfc_df
+                # # print survey.ptfc_df.describe()
+
+                # print survey.ptfc_df.to_dict('list')
+
+                # # Create a line feature from the survey points
+                # start_time = timeit.default_timer()
+                # survey.make_line_feature(lnfc_path, ln_field_names)
+                # elapsed = timeit.default_timer() - start_time
+                # print "Line from Numpyarray creation time: {}".format(elapsed)
+
+                # start_time = timeit.default_timer()
+                survey.make_line_feature_df(lnfc_path, ln_field_names)
+                # elapsed = timeit.default_timer() - start_time
+                # print "Line from dataframe creation time: {}".format(elapsed)
 
         # Get the associated sample polygon
         sample_poly = SamplePoly(sample.id, svmp_gdb)

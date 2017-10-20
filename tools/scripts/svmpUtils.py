@@ -43,6 +43,11 @@ segmentsTbl = 'segments'
 #Feature Classes
 samppolyFC = 'samp_polygons'
 
+NULL_DEPTH = -9999
+NULL_VEG = -9999
+NULL_VIDEO = -9999
+
+
 # Spatial Reference
 sr = arcpy.SpatialReference(2927) # NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Fee
 
