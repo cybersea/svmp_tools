@@ -242,6 +242,8 @@ class Sample(object):
         self.id = id
         # individual transect objects
         self.transects = [] # list of associated sample objects
+        self.lnfc_path = ""
+        self.lnfc_clip_path = ""
 
     def __repr__(self):
         return repr((self.id, self.transect_ids))
@@ -280,17 +282,18 @@ class Sample(object):
         """ Adds individual transect objects to the sample"""
         self.transects.append(transect)
 
-    def make_line_fc(self, template_fc, gdb="in_memory" ):
-        lnfc_path = os.path.join(gdb, self.lnfc)
-        del_fc(lnfc_path)
+    def make_line_fc(self, template_fc, gdb="in_memory"):
+        self.lnfc_path = os.path.join(gdb, self.lnfc)
+        del_fc(self.lnfc_path)
         arcpy.CreateFeatureclass_management(gdb, self.lnfc, "Polyline", template_fc, spatial_reference = utils.sr)
-        return lnfc_path
+        return self.lnfc_path
 
-    def clip_line_fc(self, poly_layer, gdb="in_memory" ):
-        lnfc_path = os.path.join(gdb, self.lnfc)
-        lnfc_clip_path = os.path.join(gdb, self.lnfc_clipped)
-        del_fc(lnfc_clip_path)
-        arcpy.Clip_analysis(lnfc_path, poly_layer, lnfc_clip_path)
+    def clip_line_fc(self, poly_layer, gdb="in_memory"):
+        # lnfc_path = os.path.join(gdb, self.lnfc)
+        self.lnfc_clip_path = os.path.join(gdb, self.lnfc_clipped)
+        del_fc(self.lnfc_clip_path)
+        arcpy.Clip_analysis(self.lnfc_path, poly_layer, self.lnfc_clip_path)
+
 
 class Transect(object):
     """ Represents an individual Transect
@@ -314,15 +317,68 @@ class Transect(object):
 
     @property
     def survey_ids(self):
+        """ Returns a list of survey ids"""
         return self._survey_attrs('id')
 
     @property
     def maxdepflag(self):
+        """ Maximum depth quality flag.
+            Uses the maximum value for associated surveys
+        """
         return max(self._survey_attrs('maxdepflag'))
 
     @property
     def mindepflag(self):
+        """ Minimum depth quality flag
+            Uses the maximum value for associated surveys
+        """
         return max(self._survey_attrs('maxdepflag'))
+
+    @property
+    def maxdep(self):
+        """ Maximum (deepest) depth value
+            Counter-intuitive because deeper depths are negative values
+        """
+        return min(self._survey_attrs('maxdep'))
+
+    @property
+    def mindep(self):
+        """ Minimum (shallowest) depth value
+            Counter-intuitive because deeper depths are negative values
+        """
+        return max(self._survey_attrs('mindep'))
+
+    @property
+    def maxdep_veg(self):
+        """ Maximum (deepest) depth value of vegetation
+            Counter-intuitive because deeper depths are negative values
+        """
+        return min(self._survey_attrs('maxdep_veg'))
+
+    @property
+    def mindep_veg(self):
+        """ Minimum (shallowest) depth value of vegetation
+            Counter-intuitive because deeper depths are negative values
+        """
+        return max(self._survey_attrs('mindep_veg'))
+
+    @property
+    def len(self):
+        """ Length of the clipped transect """
+        return sum(self._survey_attrs('len'))
+
+    @property
+    def veglen(self):
+        """ Length of vegetation on the clipped transect """
+        return sum(self._survey_attrs('veglen'))
+
+    @property
+    def vegfraction(self):
+        """ Fraction of clipped transect line that has specified vegetation"""
+        try:
+            return self.veglen / self.len
+        except ZeroDivisionError:
+            return 0.0
 
     def _survey_attrs(self, attr):
         """ Fetch list of attributes from the surveys in the transect """
@@ -350,8 +406,8 @@ class Survey(object):
 
     Properties:
     id -- survey identifier
-    maxdepflag -- maximum depth flag
-    mindepflag -- minimum depth flag
+    maxdepflag -- maximum depth quality flag
+    mindepflag -- minimum depth quality flag
     sitevisit -- site visit id
     veg_code -- veg_code for the statistics for the survey
     ptfc -- the name of the point feature class that contains the survey points
@@ -371,6 +427,7 @@ class Survey(object):
         self.ptfc_path = ""
         self.ptfc_array = None
         self.ptfc_df = None
+        self.lnfc_df = None
 
 
     def __repr__(self):
@@ -393,7 +450,7 @@ class Survey(object):
         """
         delimited_svyidcol = arcpy.AddFieldDelimiters(self.ptfc_path, utils.surveyidCol)
         where_clause = "{0} = '{1}'".format(delimited_svyidcol, self.id)
-        df = pd.DataFrame([row for row in arcpy.da.SearchCursor(self.ptfc_path, pt_field_names, where_clause, )],
+        df = pd.DataFrame([row for row in arcpy.da.SearchCursor(self.ptfc_path, pt_field_names, where_clause)],
                           columns=pt_field_names)
         # Sort the dataframe by surveyid number and time stamp
         # Note:  in later versions of pandas (0.17.0), this is deprecated and replaced by sort_values
@@ -411,7 +468,7 @@ class Survey(object):
     @property
     def maxdep(self):
         """ Maximum (i.e., deepest) depth on the survey line, prior to clipping
-            Must have video = 1, and not be the null depth value (-9999)
+            Must have video = 1, and not be the null depth value ( depInterp != -9999)
         """
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)]
@@ -422,7 +479,7 @@ class Survey(object):
     @property
     def mindep(self):
         """ Minimum depth (i.e. shallowest) on the survey line, prior to clipping
-            Must have video = 1, and not be the null depth value (-9999)
+            Must have video = 1, and not be the null depth value ( depInterp != -9999)
         """
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)]
@@ -432,8 +489,8 @@ class Survey(object):
 
     @property
     def maxdep_veg(self):
-        """ Maximum (i.e., deepest) depth of selected veg_cod the survey line, prior to clipping
-            Must have video = 1, and not be the null depth value (-9999)
+        """ Maximum (i.e., deepest) depth of selected veg_code on the survey line, prior to clipping
+            Must have video = 1, and not be the null depth value ( depInterp != -9999)
         """
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
@@ -444,8 +501,8 @@ class Survey(object):
 
     @property
     def mindep_veg(self):
-        """ Maximum (i.e., deepest) depth of selected veg_cod the survey line, prior to clipping
-            Must have video = 1, and not be the null depth value (-9999)
+        """ Maximum (i.e., deepest) depth of selected veg_code on the survey line, prior to clipping
+            Must have video = 1, and not be the null depth value ( depInterp != -9999)
         """
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
@@ -453,6 +510,40 @@ class Survey(object):
             return df[utils.depInterpCol].max()
         else:
             return None
+
+    @property
+    def len(self):
+        """ Total Length of the clipped survey line
+            Must have video = 1
+        """
+        if self.lnfc_df is not None:
+            df = self.lnfc_df[(self.lnfc_df[utils.videoCol] == 1)]
+            return df['SHAPE@LENGTH'].sum()
+        else:
+            return None
+
+    @property
+    def veglen(self):
+        """ Total Length of the clipped survey line
+            Must have video = 1 and presence of specified vegetation
+        """
+        if self.lnfc_df is not None:
+            df = self.lnfc_df[(self.lnfc_df[utils.videoCol] == 1) & (self.lnfc_df[veg_code] == 1)]
+            return df['SHAPE@LENGTH'].sum()
+        else:
+            return None
+
+    @property
+    def vegfraction(self):
+        """ Fraction of clipped survey line that has specified vegetation"""
+        if self.lnfc_df is not None:
+            try:
+                return self.veglen / self.len
+            except ZeroDivisionError:
+                return 0.0
+        else:
+            return None
+
 
     def make_line_feature_df(self, lnfc_path, ln_field_names):
         """ Create a line feature from the point feature data frame """
@@ -493,6 +584,13 @@ class Survey(object):
                 # print pt_attributes
                 # print("X: {0}, Y: {1}".format(to_point.X, to_point.Y))
 
+    def set_lnfc_df(self, fc_path, fields):
+        """ Create a pandas dataframe of clipped line segments and specified attributes
+            and set the lnfc_df property to that array
+        """
+        delimited_svyidcol = arcpy.AddFieldDelimiters(fc_path, utils.surveyidCol)
+        where_clause = "{0} = '{1}'".format(delimited_svyidcol, self.id)
+        self.lnfc_df = pd.DataFrame([row for row in arcpy.da.SearchCursor(fc_path, fields, where_clause)],columns=fields)
 
     def make_line_feature(self, lnfc_path, ln_field_names):
         """ Create a line feature from the point feature array (as a list) """
@@ -836,6 +934,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # Field names specific to point and line data sets
     pt_field_names = ['OID@', 'SHAPE@XY'] + base_field_names
     ln_field_names = ['OID@', 'SHAPE@'] + base_field_names
+    ln_clip_field_names = ['OID@', 'SHAPE@LENGTH'] + base_field_names
 
     #----- Create the template feature class for the temporary transect lines
     template_ln = create_template_ln(transect_gdb, base_field_names, base_field_types, base_field_lengths)
@@ -907,6 +1006,28 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         sample_poly = SamplePoly(sample.id, svmp_gdb)
         # Clip the line segments
         sample.clip_line_fc(sample_poly.feat_lyr, transect_gdb)
+
+        for transect in sample.transects:
+            print transect.id
+            for survey in transect.surveys:
+                # survey.lnfc_clip_path = sample.lnfc_clip_path
+                # print survey.lnfc_clip_path
+                survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
+                # print survey.lnfc_df
+                print survey.id
+                print "Veg length: {}".format(survey.veglen)
+                print "Survey length: {}".format(survey.len)
+                print "Veg fraction: {}".format(survey.vegfraction)
+            print transect.id
+            print "Max depth: {}".format(transect.maxdep)
+            print "Min depth: {}".format(transect.mindep)
+            print "Max Veg depth: {}".format(transect.maxdep_veg)
+            print "Min Veg depth: {}".format(transect.mindep_veg)
+            print "Veg length: {}".format(transect.veglen)
+            print "Survey length: {}".format(transect.len)
+            print "Veg fraction: {}".format(transect.vegfraction)
+
+
 
 
 
