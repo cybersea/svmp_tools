@@ -263,6 +263,67 @@ class Sample(object):
         """ Feature class name for clipped line feature class"""
         return self.lnfc + "_clipped"
 
+    @property
+    def n_area(self):
+        """ Count of transects used in sample/site results"""
+        return len(self.transects)
+
+    @property
+    def sample_length(self):
+        """ Total length of transect lines in sample"""
+        return sum(self._transect_attrs('len'))
+
+    @property
+    def mean_transect_length(self):
+        """Mean transect lengths (L bar) """
+        try:
+            return self.sample_length / self.n_area
+        except ZeroDivisionError:
+            return 0.0
+
+    @property
+    def veg_length(self):
+        """ Total length of vegetation along transect lines in sample"""
+        return sum(self._transect_attrs('veglen'))
+
+    @property
+    def veg_fraction(self):
+        """ Estimated mean vegetation fraction (P Bar Hat) """
+        try:
+            return self.veg_length / self.sample_length
+        except ZeroDivisionError:
+            return 0.0
+
+    @property
+    def sample_area(self):
+        """ Area of the sample polygon """
+        return self.sample_poly.area
+
+    @property
+    def veg_area(self):
+        """ Area of the vegetation at the site """
+        try:
+            return self.veg_fraction * self.sample_area
+        except ZeroDivisionError:
+            return 0.0
+
+    @property
+    def var_vegfraction(self):
+        """ Estimated variance of the vegetation fraction """
+        sample_lengths = self._transect_attrs('len')
+        veg_lengths = self._transect_attrs('veglen')
+        return ratioEstVar(sample_lengths, veg_lengths, self.veg_fraction,
+                                 self.n_area, self.mean_transect_length)
+    @property
+    def var_vegarea(self):
+        """ Estimated variance of the vegetation area """
+        return self.var_vegfraction * (self.sample_area ** 2)
+
+    @property
+    def se_vegarea(self):
+        """ Standard error of the vegetation area """
+        return self.var_vegarea ** 0.5
+
     def _transect_attrs(self, attr):
         """ Fetch attributes from the transects in the group """
         return [getattr(transect, attr) for transect in self.transects]
@@ -697,6 +758,7 @@ class SamplePoly(object):
     fc -- feature class full path
     gdb -- geodatabase containing the feature class
     feat_lyr -- an in-memory feature layer of the sample polygon
+    area = area of the sample polygon
 
 
     """
@@ -704,21 +766,25 @@ class SamplePoly(object):
         self.id = id
         self.fc = os.path.join(gdb, utils.samppolyFC)
         self.gdb = gdb
-        self.feat_lyr = self._make_feature_layer()
+        self.layer = self._make_feature_layer()
 
     def _make_feature_layer(self):
         """ Returns a feature layer of the sample polygon"""
-        poly_layer = self.id + "_fl"
+        _poly_layer = self.id + "_fl"
         # Select sample polygon for that sample
         try:
             delimited_sampidcol = arcpy.AddFieldDelimiters(self.fc, utils.sampidCol)
             where_clause = "{0} = '{1}'".format(delimited_sampidcol, self.id)
-            arcpy.MakeFeatureLayer_management(self.fc, poly_layer, where_clause)
-            return poly_layer
+            arcpy.MakeFeatureLayer_management(self.fc, _poly_layer, where_clause)
+            return _poly_layer
         except:
             return None
 
-
+    @property
+    def area(self):
+        """ Area of the sample polygon"""
+        features = arcpy.da.FeatureClassToNumPyArray(self.layer, "SHAPE@AREA")
+        return features["SHAPE@AREA"].sum()
 
 class Table(object):
     """ Represents a source SVMP data table
@@ -788,6 +854,28 @@ def filter_samples(svmp_tables, filter):
         samp_df = samp_df[samp_df[utils.sitecodeCol].isin(filter["site_code"])]
     # Final filtered dataframe
     return samp_df
+
+
+def ratioEstVar(L_list, l_list, pBarHat, m, LBar):
+    """
+    Calculate Ratio estimator of variance for eelgrass fraction
+    Variable names follow DNR SVMP nomenclature from
+    "Puget Sound Vegetation Monitoring Project:  2000 - 2002 Monitoring Report"
+    See Appendix L, Page 3
+    :param L_list:
+    :param l_list:
+    :param pBarHat:
+    :param m:
+    :param LBar:
+    :return: estvar
+    """
+    numerator = 0
+    # Loop through list of eelgrass and sample lengths in parallel
+    for l, L in zip(l_list, L_list):
+        numerator = ((l - (pBarHat * L)) ** 2) + numerator
+    denominator = (m - 1) * m * (LBar ** 2)
+    estvar = numerator / denominator
+    return estvar
 
 def paramstr2list(param, delim=";"):
     """ Convert an ESRI multichoice parameter value to a list"""
@@ -948,16 +1036,18 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # # print samp_vegp.samples
     # # print samp_vegp.sample_ids
     for sample in samp_vegp.samples:
-        # print sample.id
+        sample.veg_code = samp_vegp.veg_code
+        print "Sample ID: {}".format(sample.id)
         # print sample.transect_ids
         # Create an empty line feature class for the sample transects/surveys
         lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
         for transect in sample.transects:
-            print transect.id
+            transect.veg_code = sample.veg_code
+            # print transect.id
             # print transect.maxdepflag, transect.mindepflag
             # print transect.survey_ids
             for survey in transect.surveys:
-                print survey.id
+                # print survey.id
                 survey.veg_code = veg_code
                 # print survey.maxdepflag, survey.mindepflag
                 # survey.pointfc = transect_gdb
@@ -965,8 +1055,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 # ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
                 # ptfc_path = os.path.join(surveypt_fcs.gdb, ptfc) # full path to survey point feature class
                 #----- for testing ONLY, specify input point feature class ---------------
-                # ptfc = "core004_2014_01_transect_pt"
-                # ptfc_path = os.path.join(transect_gdb, ptfc) # full path to survey point feature class
                 survey.ptfc = "core004_2014_01_transect_pt"
                 survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
                 #---------------------
@@ -974,10 +1062,10 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 # Get pandas data frame of the survey's points and specified attributes
                 # start_time = timeit.default_timer()
                 survey.set_ptfc_df(pt_field_names)
-                print "Max depth: {}".format(survey.maxdep)
-                print "Min depth: {}".format(survey.mindep)
-                print "Max Veg depth: {}".format(survey.maxdep_veg)
-                print "Min Veg depth: {}".format(survey.mindep_veg)
+                # print "Max depth: {}".format(survey.maxdep)
+                # print "Min depth: {}".format(survey.mindep)
+                # print "Max Veg depth: {}".format(survey.maxdep_veg)
+                # print "Min Veg depth: {}".format(survey.mindep_veg)
 
                 # elapsed = timeit.default_timer() - start_time
                 # print "DataFrame creation time: {}".format(elapsed)
@@ -1004,28 +1092,40 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
         # Get the associated sample polygon
         sample_poly = SamplePoly(sample.id, svmp_gdb)
+        sample.sample_poly = sample_poly
         # Clip the line segments
-        sample.clip_line_fc(sample_poly.feat_lyr, transect_gdb)
+        sample.clip_line_fc(sample_poly.layer, transect_gdb)
 
         for transect in sample.transects:
-            print transect.id
+            # print transect.id
             for survey in transect.surveys:
                 # survey.lnfc_clip_path = sample.lnfc_clip_path
                 # print survey.lnfc_clip_path
                 survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
                 # print survey.lnfc_df
-                print survey.id
-                print "Veg length: {}".format(survey.veglen)
-                print "Survey length: {}".format(survey.len)
-                print "Veg fraction: {}".format(survey.vegfraction)
+                # print survey.id
+                # print "Veg length: {}".format(survey.veglen)
+                # print "Survey length: {}".format(survey.len)
+                # print "Veg fraction: {}".format(survey.vegfraction)
             print transect.id
             print "Max depth: {}".format(transect.maxdep)
             print "Min depth: {}".format(transect.mindep)
             print "Max Veg depth: {}".format(transect.maxdep_veg)
             print "Min Veg depth: {}".format(transect.mindep_veg)
+            print "Max depth Quality Flag: {}".format(transect.maxdepflag)
+            print "Min depth Quality Flag: {}".format(transect.mindepflag)
             print "Veg length: {}".format(transect.veglen)
             print "Survey length: {}".format(transect.len)
             print "Veg fraction: {}".format(transect.vegfraction)
+
+        print "Sample Transect count (n): {}".format(sample.n_area)
+        print "Sample Veg Fraction: {}".format(sample.veg_fraction)
+        print "Sample Poly Area: {}".format(sample.sample_area)
+        print "Sample Veg Area: {}".format(sample.veg_area)
+        print "Sample Var Veg Fraction: {}".format(sample.var_vegfraction)
+        print "Sample Var Veg Area: {}".format(sample.var_vegarea)
+        print "Sample SE Veg Area: {}".format(sample.se_vegarea)
+
 
 
 
