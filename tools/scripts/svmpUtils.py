@@ -84,3 +84,50 @@ def tables_fcs_list(gdb):
 def fieldExists(dataset, field_name):
     if field_name in [field.name for field in arcpy.ListFields(dataset)]:
         return True
+
+
+
+def stdDev(sample):
+    """ Calculates Standard Deviation of a sample
+    :param sample: list of values that make up the sample
+    :return: standard deviation
+    """
+    N = len(sample)  # number of samples
+    # Can't calculate if number if samples is 0 or 1
+    mean = float(sum(sample)) / N  # mean of the samples
+    sum_sqdif = 0  # initialize sum of squared differences
+    # Calculate sum of squared differences
+    for val in sample:
+        sqdif = (val - mean) ** 2
+        sum_sqdif = ((val - mean) ** 2) + sum_sqdif
+    # Standard Deviation
+    s = ((1 / (float(N) - 1)) * sum_sqdif) ** 0.5
+    return s
+
+
+def variance(stdDev):
+    """ Calculates variance of a sample
+    :param stdDev:  standard deviation
+    :return: standard deviation
+    """
+    var = stdDev ** 2
+    return var
+
+
+def stdErr(s, N):
+    """ Calculate Standard Error of a sample
+    :param s: Standard Deviation
+    :param N: number of samples
+    :return: standard error
+    """
+    SE = s / (float(N) ** 0.5)
+    return SE
+
+
+def ci95(SE):
+    """ Calculate 95% confidence interval
+    :param SE: standard error
+    :return: 95% confidence interval
+    """
+    confint95 = 1.96 * SE
+    return confint95

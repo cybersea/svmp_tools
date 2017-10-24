@@ -312,8 +312,8 @@ class Sample(object):
         """ Estimated variance of the vegetation fraction """
         sample_lengths = self._transect_attrs('len')
         veg_lengths = self._transect_attrs('veglen')
-        return ratioEstVar(sample_lengths, veg_lengths, self.veg_fraction,
-                                 self.n_area, self.mean_transect_length)
+        return ratioEstVar(sample_lengths, veg_lengths, self.veg_fraction, self.n_area, self.mean_transect_length)
+
     @property
     def var_vegarea(self):
         """ Estimated variance of the vegetation area """
@@ -323,6 +323,91 @@ class Sample(object):
     def se_vegarea(self):
         """ Standard error of the vegetation area """
         return self.var_vegarea ** 0.5
+
+    @property
+    def mindeps4stats(self):
+        """ List of minimum vegetation depths that have acceptable quality flag"""
+        _mindeps4stats = []
+        for transect in self.transects:
+            if transect.mindepflag == 1:
+               _mindeps4stats.append(transect.mindep_veg)
+        return _mindeps4stats
+
+    @property
+    def maxdeps4stats(self):
+        """ List of maximum vegetation depths that have acceptable quality flag"""
+        _maxdeps4stats = []
+        for transect in self.transects:
+            if transect.maxdepflag == 1:
+               _maxdeps4stats.append(transect.maxdep_veg)
+        return _maxdeps4stats
+
+    @property
+    def n_veg_mindep(self):
+        """ Number of transects used for mean vegetation minimum depth """
+        return len(self.mindeps4stats)
+
+
+    @property
+    def n_veg_maxdep(self):
+        """ Number of transects used for mean vegetation minimum depth """
+        return len(self.maxdeps4stats)
+
+    @property
+    def veg_mind_mean(self):
+        """ Mean of minimum vegetation depth """
+        return sum(self.mindeps4stats) / self.n_veg_mindep
+
+    @property
+    def veg_maxd_mean(self):
+        """ Mean of maximum vegetation depth """
+        return sum(self.maxdeps4stats) / self.n_veg_maxdep
+
+    @property
+    def veg_mind_se(self):
+        """ Standard error of the vegetation minimum depth """
+        if self.n_veg_mindep > 1:
+            stdev = utils.stdDev(self.mindeps4stats)
+            return utils.stdErr(stdev, self.n_veg_mindep)
+        else:
+            return utils.NULL_DEPTH
+
+    @property
+    def veg_maxd_se(self):
+        """ Standard error of the vegetation maximum depth """
+        if self.n_veg_maxdep > 1:
+            stdev = utils.stdDev(self.maxdeps4stats)
+            return utils.stdErr(stdev, self.n_veg_maxdep)
+        else:
+            return utils.NULL_DEPTH
+
+    @property
+    def veg_mind_shallowest(self):
+        """ Sample shallowest vegetation depth
+        Note: Counter-intuitive use of max/min because depths below MLLW are negative
+        """
+        return max(self.mindeps4stats)
+
+    @property
+    def veg_mind_deepest(self):
+        """ Sample deepest vegetation depth for transect minimum depths
+        Note: Counter-intuitive use of max/min because depths below MLLW are negative
+        """
+        return min(self.mindeps4stats)
+
+    @property
+    def veg_maxd_shallowest(self):
+        """ Sample shallowest vegetation depth
+        Note: Counter-intuitive use of max/min because depths below MLLW are negative
+        """
+        return max(self.maxdeps4stats)
+
+    @property
+    def veg_maxd_deepest(self):
+        """ Sample deepest vegetation depth
+        Note: Counter-intuitive use of max/min because depths below MLLW are negative
+        """
+        return min(self.maxdeps4stats)
 
     def _transect_attrs(self, attr):
         """ Fetch attributes from the transects in the group """
@@ -1125,6 +1210,16 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         print "Sample Var Veg Fraction: {}".format(sample.var_vegfraction)
         print "Sample Var Veg Area: {}".format(sample.var_vegarea)
         print "Sample SE Veg Area: {}".format(sample.se_vegarea)
+        print "veg_mind_n_tran: {}".format(sample.n_veg_mindep)
+        print "veg_mind_mean_ft: {}".format(sample.veg_mind_mean)
+        print "veg_mind_deepest_ft: {}".format(sample.veg_mind_deepest)
+        print "veg_mind_shallowest_ft: {}".format(sample.veg_mind_shallowest)
+        print "veg_mind_se_ft: {}".format(sample.veg_mind_se)
+        print "veg_maxd_n_tran: {}".format(sample.n_veg_maxdep)
+        print "veg_maxd_mean_ft: {}".format(sample.veg_maxd_mean)
+        print "veg_maxd_deepest_ft: {}".format(sample.veg_maxd_deepest)
+        print "veg_maxd_shallowest_ft: {}".format(sample.veg_maxd_shallowest)
+        print "veg_maxd_se_ft: {}".format(sample.veg_maxd_se)
 
 
 
