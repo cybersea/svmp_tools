@@ -254,6 +254,11 @@ class Sample(object):
         return self._transect_attrs('id')
 
     @property
+    def transectpts_exist(self):
+        """ List of transect ids associated with the sample"""
+        return self._transect_attrs('pts_exist')
+
+    @property
     def lnfc(self):
         """ Feature class name for line feature class"""
         return self.id
@@ -329,8 +334,8 @@ class Sample(object):
         """ List of minimum vegetation depths that have acceptable quality flag"""
         _mindeps4stats = []
         for transect in self.transects:
-            if transect.mindepflag == 1:
-               _mindeps4stats.append(transect.mindep_veg)
+            if transect.mindepflag == 1 and transect.mindep_veg is not None:
+                _mindeps4stats.append(transect.mindep_veg)
         return _mindeps4stats
 
     @property
@@ -338,8 +343,8 @@ class Sample(object):
         """ List of maximum vegetation depths that have acceptable quality flag"""
         _maxdeps4stats = []
         for transect in self.transects:
-            if transect.maxdepflag == 1:
-               _maxdeps4stats.append(transect.maxdep_veg)
+            if transect.maxdepflag == 1 and transect.maxdep_veg is not None:
+                _maxdeps4stats.append(transect.maxdep_veg)
         return _maxdeps4stats
 
     @property
@@ -467,6 +472,16 @@ class Transect(object):
         return self._survey_attrs('id')
 
     @property
+    def pts_exist(self):
+        """ Returns an existence flag for associated survey point features
+            Flag is only true if ALL survey point features exist
+        """
+        if all(self._survey_attrs('pts_exist')):
+            return True
+        else:
+            return False
+
+    @property
     def maxdepflag(self):
         """ Maximum depth quality flag.
             Uses the maximum value for associated surveys
@@ -574,6 +589,7 @@ class Survey(object):
         self.ptfc_array = None
         self.ptfc_df = None
         self.lnfc_df = None
+        self.pts_exist = False
 
 
     def __repr__(self):
@@ -995,6 +1011,8 @@ def msg(msg):
 def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel):
     # Main function to run code
 
+    main_start_time = timeit.default_timer()
+
     # For debugging -- print the input parameters
     # print_params([transect_gdb,svmp_gdb,stats_gdb,survey_year,veg_code,sites_file,study,samp_sel])
 
@@ -1077,6 +1095,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     else:
         site_codes = []
 
+    ##### For testing
+    # site_codes = ['cps2120']
+
     # Dictionary of filters used to select samples to process
     filter = {
         "year" : survey_year,
@@ -1093,8 +1114,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     # # ------- List of available point feature classes and associated survey_ids -------
     #  NOTE:  This is quite slow -- may be able to improve by re-writing with da.Walk approach
-    # msg("Generating list of point transect features in {0}".format(transect_gdb))
-    # surveypt_fcs = SurveyFCPtGroup(transect_gdb, survey_year)
+    msg("Generating list of point transect features in {0}".format(transect_gdb))
+    surveypt_fcs = SurveyFCPtGroup(transect_gdb, survey_year)
     # # print surveypt_fcs.fcs
     # # print surveypt_fcs.survey_fc
 
@@ -1122,7 +1143,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # # print samp_vegp.sample_ids
     for sample in samp_vegp.samples:
         sample.veg_code = samp_vegp.veg_code
-        print "Sample ID: {}".format(sample.id)
+        msg("Processing Sample ID: {}".format(sample.id))
         # print sample.transect_ids
         # Create an empty line feature class for the sample transects/surveys
         lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
@@ -1134,14 +1155,19 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             for survey in transect.surveys:
                 # print survey.id
                 survey.veg_code = veg_code
-                # print survey.maxdepflag, survey.mindepflag
-                # survey.pointfc = transect_gdb
                 # Get survey points from feature class
-                # ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
-                # ptfc_path = os.path.join(surveypt_fcs.gdb, ptfc) # full path to survey point feature class
+                try:
+                    survey.ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
+                    survey.ptfc_path = os.path.join(surveypt_fcs.gdb,
+                                                    survey.ptfc)  # full path to survey point feature class
+                    survey.pts_exist = True
+                except KeyError:
+                    msg("Missing transect point feature for survey: {}".format(survey.id))
+                    continue
+
                 #----- for testing ONLY, specify input point feature class ---------------
-                survey.ptfc = "core004_2014_01_transect_pt"
-                survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
+                # survey.ptfc = "core004_2014_01_transect_pt"
+                # survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
                 #---------------------
 
                 # Get pandas data frame of the survey's points and specified attributes
@@ -1175,6 +1201,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 # elapsed = timeit.default_timer() - start_time
                 # print "Line from dataframe creation time: {}".format(elapsed)
 
+        if not any(sample.transectpts_exist):
+            """ If there are no point features for the sample, skip the rest of the calcs"""
+            msg("Missing all point features for Sample {} \n\t".format(sample.id))
+            continue
+
         # Get the associated sample polygon
         sample_poly = SamplePoly(sample.id, svmp_gdb)
         sample.sample_poly = sample_poly
@@ -1192,7 +1223,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 # print "Veg length: {}".format(survey.veglen)
                 # print "Survey length: {}".format(survey.len)
                 # print "Veg fraction: {}".format(survey.vegfraction)
-            print transect.id
+            msg("Calculating transect results for {}".format(transect.id))
+            print transect.pts_exist
             print "Max depth: {}".format(transect.maxdep)
             print "Min depth: {}".format(transect.mindep)
             print "Max Veg depth: {}".format(transect.maxdep_veg)
@@ -1220,15 +1252,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         print "veg_maxd_deepest_ft: {}".format(sample.veg_maxd_deepest)
         print "veg_maxd_shallowest_ft: {}".format(sample.veg_maxd_shallowest)
         print "veg_maxd_se_ft: {}".format(sample.veg_maxd_se)
-
-
-
-
-
-
-
-
-
 
 
     # print samp_vegp.sample_ids
@@ -1260,6 +1283,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # samples_list = make_sampleList(svmp_gdb,survey_year,veg_code,sites_file,study,samp_sel)
 
 
+    main_elapsed = timeit.default_timer() - main_start_time
+    main_elapsed_mins = main_elapsed / 60
+    print "Full script elapsed time: {} minutes".format(main_elapsed_mins)
 
 if __name__ == '__main__':
 
@@ -1281,9 +1307,10 @@ if __name__ == '__main__':
     veg_code = "nativesg"
 
     # Input parameter 6: List of Sites file -- OPTIONAL
-    # sites_file = ""
+    sites_file = ""
     # sites_file = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
-    sites_file = "Y:/projects/dnr_svmp2016/data/sitefiles/sites2014core004.txt"
+    # sites_file = "Y:/projects/dnr_svmp2016/data/sitefiles/sites2014core004.txt"
+    # sites_file = "Y:/projects/dnr_svmp2016/data/sitefiles/sites2014cps10801081.txt"
 
     # Input parameter 7: Study or Studies to Be Processed -- OPTIONAL
     # Returned from ArcToolbox as a semi-colon separated string "CityBham;DNRparks;Elwha"
