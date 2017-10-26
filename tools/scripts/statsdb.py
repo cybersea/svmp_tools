@@ -15,12 +15,12 @@ import os
 import timeit
 
 
-def create_output_table(type, timestamp, gdb):
+def create_output_table(type, timestamp, suffix, gdb):
     if type == "site":
         basename = "site_results"
     if type == "transect":
         basename = "transect_results"
-    tablename = "_".join((basename, timestamp))
+    tablename = "_".join((basename, suffix, timestamp))
     template = os.path.join(gdb, basename)
     arcpy.CreateTable_management(gdb, tablename, template)
     return os.path.join(gdb, tablename)
@@ -1186,10 +1186,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     #--------------- Create the Results Data Table ---------------------------------
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    site_results_table = create_output_table("site", timestamp, stats_gdb)
-    transect_results_table = create_output_table("transect", timestamp, stats_gdb)
-    print site_results_table
-    print transect_results_table
+    site_results_table = create_output_table("site", timestamp, survey_year + "_present", stats_gdb)
+    transect_results_table = create_output_table("transect", timestamp, survey_year + "_present", stats_gdb)
     # ----------- Initialize dictionary to hold transect and site results
     transect_results = {}
     site_results = {}
@@ -1399,7 +1397,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     # -------------------- Populate Results Tables ----------------------------
     # Populate tables with transect results
-    msg("Populating transect results table")
+    msg("Populating transect results table: \n {} ".format(transect_results_table))
     cursor_transects = arcpy.da.InsertCursor(transect_results_table, utils.transect_results_fields)
     for id in sorted(transect_results.iterkeys()):
         # print transect_results[id]
@@ -1407,7 +1405,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     del cursor_transects
 
     # Populate tables with site results
-    msg("Populating site results table")
+    msg("Populating site results table: \n {} ".format(site_results_table))
     cursor_sites = arcpy.da.InsertCursor(site_results_table, utils.site_results_fields)
     for id in sorted(site_results.iterkeys()):
         # print site_results[id]
