@@ -330,20 +330,28 @@ class Sample(object):
         return self.var_vegarea ** 0.5
 
     @property
+    def minvegdeps(self):
+        return self._transect_attrs('mindep_veg')
+
+    @property
+    def maxvegdeps(self):
+        return self._transect_attrs('maxdep_veg')
+
+    @property
     def mindeps4stats(self):
-        """ List of minimum vegetation depths that have acceptable quality flag"""
+        """ List of minimum vegetation depths that have acceptable quality flag and are not null"""
         _mindeps4stats = []
         for transect in self.transects:
-            if transect.mindepflag == 1 and transect.mindep_veg is not None:
+            if transect.mindepflag == 1 and transect.mindep_veg != utils.NULL_DEPTH:
                 _mindeps4stats.append(transect.mindep_veg)
         return _mindeps4stats
 
     @property
     def maxdeps4stats(self):
-        """ List of maximum vegetation depths that have acceptable quality flag"""
+        """ List of maximum vegetation depths that have acceptable quality flag and are not null"""
         _maxdeps4stats = []
         for transect in self.transects:
-            if transect.maxdepflag == 1 and transect.maxdep_veg is not None:
+            if transect.maxdepflag == 1 and transect.maxdep_veg != utils.NULL_DEPTH:
                 _maxdeps4stats.append(transect.maxdep_veg)
         return _maxdeps4stats
 
@@ -351,7 +359,6 @@ class Sample(object):
     def n_veg_mindep(self):
         """ Number of transects used for mean vegetation minimum depth """
         return len(self.mindeps4stats)
-
 
     @property
     def n_veg_maxdep(self):
@@ -391,28 +398,32 @@ class Sample(object):
         """ Sample shallowest vegetation depth
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
-        return max(self.mindeps4stats)
+        # return max(self.mindeps4stats)
+        return max([depth for depth in self.minvegdeps if depth != utils.NULL_DEPTH])
 
     @property
     def veg_mind_deepest(self):
         """ Sample deepest vegetation depth for transect minimum depths
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
-        return min(self.mindeps4stats)
+        # return min(self.mindeps4stats)
+        return min([depth for depth in self.minvegdeps if depth != utils.NULL_DEPTH])
 
     @property
     def veg_maxd_shallowest(self):
         """ Sample shallowest vegetation depth
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
-        return max(self.maxdeps4stats)
+        # return max(self.maxdeps4stats)
+        return max([depth for depth in self.maxvegdeps if depth != utils.NULL_DEPTH])
 
     @property
     def veg_maxd_deepest(self):
         """ Sample deepest vegetation depth
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
-        return min(self.maxdeps4stats)
+        # return min(self.maxdeps4stats)
+        return min([depth for depth in self.maxvegdeps if depth != utils.NULL_DEPTH])
 
     def _transect_attrs(self, attr):
         """ Fetch attributes from the transects in the group """
@@ -500,28 +511,40 @@ class Transect(object):
         """ Maximum (deepest) depth value
             Counter-intuitive because deeper depths are negative values
         """
-        return min(self._survey_attrs('maxdep'))
+        if np.isnan(min(self._survey_attrs('maxdep'))):
+            return utils.NULL_DEPTH
+        else:
+            return min(self._survey_attrs('maxdep'))
 
     @property
     def mindep(self):
         """ Minimum (shallowest) depth value
             Counter-intuitive because deeper depths are negative values
         """
-        return max(self._survey_attrs('mindep'))
+        if np.isnan(max(self._survey_attrs('mindep'))):
+            return utils.NULL_DEPTH
+        else:
+            return max(self._survey_attrs('mindep'))
 
     @property
     def maxdep_veg(self):
         """ Maximum (deepest) depth value of vegetation
             Counter-intuitive because deeper depths are negative values
         """
-        return min(self._survey_attrs('maxdep_veg'))
+        if np.isnan(min(self._survey_attrs('maxdep_veg'))):
+            return utils.NULL_DEPTH
+        else:
+            return min(self._survey_attrs('maxdep_veg'))
 
     @property
     def mindep_veg(self):
         """ Minimum (shallowest) depth value of vegetation
             Counter-intuitive because deeper depths are negative values
         """
-        return max(self._survey_attrs('mindep_veg'))
+        if np.isnan(max(self._survey_attrs('mindep_veg'))):
+            return utils.NULL_DEPTH
+        else:
+            return max(self._survey_attrs('mindep_veg'))
 
     @property
     def len(self):
@@ -657,6 +680,9 @@ class Survey(object):
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
                               & (self.ptfc_df[veg_code] == 1)]
+            # if df.empty:
+            #     return utils.NULL_VEG
+            # else:
             return df[utils.depInterpCol].min()
         else:
             return None
@@ -669,6 +695,9 @@ class Survey(object):
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
                               & (self.ptfc_df[veg_code] == 1)]
+            # if df.empty:
+            #     return utils.NULL_VEG
+            # else:
             return df[utils.depInterpCol].max()
         else:
             return None
@@ -1096,7 +1125,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         site_codes = []
 
     ##### For testing
-    # site_codes = ['cps2120']
+    site_codes = ['cps1058']
 
     # Dictionary of filters used to select samples to process
     filter = {
@@ -1135,74 +1164,40 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     # ------- Create groups of samples and associated transects/surveys for processing --------
 
-    # Veg present
+    #----------------- Veg present Samples  --------------------------------------------
     msg("Grouping samples for processing and calculation of results")
     samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
-    # # print samp_vegp
-    # # print samp_vegp.samples
-    # # print samp_vegp.sample_ids
+
     for sample in samp_vegp.samples:
         sample.veg_code = samp_vegp.veg_code
         msg("Processing Sample ID: {}".format(sample.id))
-        # print sample.transect_ids
         # Create an empty line feature class for the sample transects/surveys
         lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
+        # Get point data associated with each survey/transect and create line features
         for transect in sample.transects:
             transect.veg_code = sample.veg_code
-            # print transect.id
-            # print transect.maxdepflag, transect.mindepflag
-            # print transect.survey_ids
             for survey in transect.surveys:
-                # print survey.id
                 survey.veg_code = veg_code
-                # Get survey points from feature class
                 try:
+                    # Get survey points from feature class
                     survey.ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
                     survey.ptfc_path = os.path.join(surveypt_fcs.gdb,
                                                     survey.ptfc)  # full path to survey point feature class
+                    # ----- for testing ONLY, specify input point feature class ---------------
+                    # survey.ptfc = "core004_2014_01_transect_pt"
+                    # survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
+                    # ------------------------------------------------------------
                     survey.pts_exist = True
+                    # Get pandas data frame of the survey's points and specified attributes
+                    survey.set_ptfc_df(pt_field_names)
+                    # Create a line feature from the point data frame
+                    survey.make_line_feature_df(lnfc_path, ln_field_names)
                 except KeyError:
                     msg("Missing transect point feature for survey: {}".format(survey.id))
                     continue
 
-                #----- for testing ONLY, specify input point feature class ---------------
-                # survey.ptfc = "core004_2014_01_transect_pt"
-                # survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
-                #---------------------
-
-                # Get pandas data frame of the survey's points and specified attributes
-                # start_time = timeit.default_timer()
-                survey.set_ptfc_df(pt_field_names)
-                # print "Max depth: {}".format(survey.maxdep)
-                # print "Min depth: {}".format(survey.mindep)
-                # print "Max Veg depth: {}".format(survey.maxdep_veg)
-                # print "Min Veg depth: {}".format(survey.mindep_veg)
-
-                # elapsed = timeit.default_timer() - start_time
-                # print "DataFrame creation time: {}".format(elapsed)
-                # Get the NumPy array of the survey's points and specified attributes
-                # start_time = timeit.default_timer()
-                # survey.set_ptfc_array(pt_field_names)
-                # # elapsed = timeit.default_timer() - start_time
-                # # print "Numpy array creation time: {}".format(elapsed)
-                # # print survey.ptfc_df
-                # # print survey.ptfc_df.describe()
-
-                # print survey.ptfc_df.to_dict('list')
-
-                # # Create a line feature from the survey points
-                # start_time = timeit.default_timer()
-                # survey.make_line_feature(lnfc_path, ln_field_names)
-                # elapsed = timeit.default_timer() - start_time
-                # print "Line from Numpyarray creation time: {}".format(elapsed)
-
-                # start_time = timeit.default_timer()
-                survey.make_line_feature_df(lnfc_path, ln_field_names)
-                # elapsed = timeit.default_timer() - start_time
-                # print "Line from dataframe creation time: {}".format(elapsed)
-
         if not any(sample.transectpts_exist):
-            """ If there are no point features for the sample, skip the rest of the calcs"""
+            """ If there are no point features for the sample, skip the rest of the calcs """
             msg("Missing all point features for Sample {} \n\t".format(sample.id))
             continue
 
@@ -1212,17 +1207,10 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         # Clip the line segments
         sample.clip_line_fc(sample_poly.layer, transect_gdb)
 
+        # Calculate the transect and site/sample statistics from clipped lines
         for transect in sample.transects:
-            # print transect.id
             for survey in transect.surveys:
-                # survey.lnfc_clip_path = sample.lnfc_clip_path
-                # print survey.lnfc_clip_path
                 survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
-                # print survey.lnfc_df
-                # print survey.id
-                # print "Veg length: {}".format(survey.veglen)
-                # print "Survey length: {}".format(survey.len)
-                # print "Veg fraction: {}".format(survey.vegfraction)
             msg("Calculating transect results for {}".format(transect.id))
             print transect.pts_exist
             print "Max depth: {}".format(transect.maxdep)
