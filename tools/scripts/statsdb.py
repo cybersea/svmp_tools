@@ -521,40 +521,52 @@ class Transect(object):
         """ Maximum (deepest) depth value
             Counter-intuitive because deeper depths are negative values
         """
-        if np.isnan(min(self._survey_attrs('maxdep'))):
+        try:
+            if np.isnan(min(self._survey_attrs('maxdep'))):
+                return utils.NULL_DEPTH
+            else:
+                return min(self._survey_attrs('maxdep'))
+        except TypeError:
             return utils.NULL_DEPTH
-        else:
-            return min(self._survey_attrs('maxdep'))
 
     @property
     def mindep(self):
         """ Minimum (shallowest) depth value
             Counter-intuitive because deeper depths are negative values
         """
-        if np.isnan(max(self._survey_attrs('mindep'))):
+        try:
+            if np.isnan(max(self._survey_attrs('mindep'))):
+                return utils.NULL_DEPTH
+            else:
+                return max(self._survey_attrs('mindep'))
+        except TypeError:
             return utils.NULL_DEPTH
-        else:
-            return max(self._survey_attrs('mindep'))
 
     @property
     def maxdep_veg(self):
         """ Maximum (deepest) depth value of vegetation
             Counter-intuitive because deeper depths are negative values
         """
-        if np.isnan(min(self._survey_attrs('maxdep_veg'))):
+        try:
+            if np.isnan(min(self._survey_attrs('maxdep_veg'))):
+                return utils.NULL_DEPTH
+            else:
+                return min(self._survey_attrs('maxdep_veg'))
+        except TypeError:
             return utils.NULL_DEPTH
-        else:
-            return min(self._survey_attrs('maxdep_veg'))
 
     @property
     def mindep_veg(self):
         """ Minimum (shallowest) depth value of vegetation
             Counter-intuitive because deeper depths are negative values
         """
-        if np.isnan(max(self._survey_attrs('mindep_veg'))):
+        try:
+            if np.isnan(max(self._survey_attrs('mindep_veg'))):
+                return utils.NULL_DEPTH
+            else:
+                return max(self._survey_attrs('mindep_veg'))
+        except TypeError:
             return utils.NULL_DEPTH
-        else:
-            return max(self._survey_attrs('mindep_veg'))
 
     @property
     def len(self):
@@ -1135,7 +1147,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         site_codes = []
 
     ##### For testing
-    site_codes = ['cps1058']
+    # site_codes = ['core001','core004','sjs0526','hdc2346','cps1770','cps2173','flats09'] # variety of types
+    # site_codes = ['cps1081'] # missing one set of points in sample, but not all
 
     # Dictionary of filters used to select samples to process
     filter = {
@@ -1151,13 +1164,10 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     msg(filter)
     samples_filtered_df = filter_samples(svmp_tables, filter)
 
-
     # # ------- List of available point feature classes and associated survey_ids -------
     #  NOTE:  This is quite slow -- may be able to improve by re-writing with da.Walk approach
     msg("Generating list of point transect features in {0}".format(transect_gdb))
     surveypt_fcs = SurveyFCPtGroup(transect_gdb, survey_year)
-    # # print surveypt_fcs.fcs
-    # # print surveypt_fcs.survey_fc
 
     # -----------------  Fields for Transect Line feature classes
     # Base Field names (without Object ID and Shape fields), field types, and lengths
@@ -1185,11 +1195,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     site_results = {}
 
     # ------- Create groups of samples and associated transects/surveys for processing --------
+    msg("Grouping samples for processing and calculation of results")
 
     #----------------- Veg present Samples  --------------------------------------------
-    msg("Grouping samples for processing and calculation of results")
+    # Calculate all values for site_results and transect_results table
     samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
-
     for sample in samp_vegp.samples:
         sample.veg_code = samp_vegp.veg_code
         msg("Processing Sample ID: {}".format(sample.id))
@@ -1210,13 +1220,15 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                     # survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
                     # ------------------------------------------------------------
                     survey.pts_exist = True
-                    # Get pandas data frame of the survey's points and specified attributes
-                    survey.set_ptfc_df(pt_field_names)
-                    # Create a line feature from the point data frame
-                    survey.make_line_feature_df(lnfc_path, ln_field_names)
                 except KeyError:
                     msg("Missing transect point feature for survey: {}".format(survey.id))
+                    survey.pts_exist = False
                     continue
+
+                # Get pandas data frame of the survey's points and specified attributes
+                survey.set_ptfc_df(pt_field_names)
+                # Create a line feature from the point data frame
+                survey.make_line_feature_df(lnfc_path, ln_field_names)
 
         if not any(sample.transectpts_exist):
             """ If there are no point features for the sample, skip the rest of the calcs """
@@ -1235,7 +1247,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         for transect in sample.transects:
             for survey in transect.surveys:
                 survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
-            msg("Calculating transect results for {}".format(transect.id))
+            # msg("Calculating transect results for {}".format(transect.id))
             # print transect.pts_exist
             # print "Max depth: {}".format(transect.maxdep)
             # print "Min depth: {}".format(transect.mindep)
@@ -1301,54 +1313,111 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             sample.veg_maxd_se
         ]
 
+    # --------------- Vegetation absent/trace, samp_sel = 'SUBJ' ---------------------
+    # Assign site_results zeros and no data values.  No entries in transect_results table
+    samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
+    for sample in samp_vegats.samples:
+        sample.veg_code = samp_vegats.veg_code
+        msg("Processing Sample ID: {}".format(sample.id))
+        site_results_id = "_".join((sample.id, sample.veg_code))
+        site_results[site_results_id] = [site_results_id,sample.id,sample.veg_code] + utils.site_results_zero
+
+    # ------------- Veg absent/trace, samp_sel <> 'SUBJ', no transects ---------------
+    # Assign site_results zeros and no data values.  No entries in transect_results table
+    samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
+    for sample in samp_vegatnsnt.samples:
+        sample.veg_code = samp_vegatnsnt.veg_code
+        msg("Processing Sample ID: {}".format(sample.id))
+        site_results_id = "_".join((sample.id, sample.veg_code))
+        site_results[site_results_id] = [site_results_id, sample.id, sample.veg_code] + utils.site_results_zero
+
+    # ----------- Veg absent/trace, samp_sel <> 'SUBJ', with transects --------------
+    # Assign site_results zeros and no data values.  Calculate transect_results
+    samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
+    for sample in samp_vegatnst.samples:
+        sample.veg_code = samp_vegatnst.veg_code
+        msg("Processing Sample ID: {}".format(sample.id))
+        site_results_id = "_".join((sample.id, sample.veg_code))
+        site_results[site_results_id] = [site_results_id, sample.id, sample.veg_code] + utils.site_results_zero
+
+        # Create an empty line feature class for the sample transects/surveys
+        lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
+        # Get point data associated with each survey/transect and create line features
+        for transect in sample.transects:
+            transect.veg_code = sample.veg_code
+            for survey in transect.surveys:
+                survey.veg_code = veg_code
+                try:
+                    # Get survey points from feature class
+                    survey.ptfc = surveypt_fcs.survey_fc[survey.id]  # feature class name for specified survey.id
+                    survey.ptfc_path = os.path.join(surveypt_fcs.gdb,
+                                                    survey.ptfc)  # full path to survey point feature class
+                    survey.pts_exist = True
+                    # Get pandas data frame of the survey's points and specified attributes
+                    survey.set_ptfc_df(pt_field_names)
+                    # Create a line feature from the point data frame
+                    survey.make_line_feature_df(lnfc_path, ln_field_names)
+                except KeyError:
+                    msg("Missing transect point feature for survey: {}".format(survey.id))
+                    continue
+
+        if not any(sample.transectpts_exist):
+            """ If there are no point features for the sample, skip the rest of the calcs """
+            msg("Missing all point features for Sample {} \n\t".format(sample.id))
+            continue
+
+        # Get the associated sample polygon
+        sample_poly = SamplePoly(sample.id, svmp_gdb)
+        sample.sample_poly = sample_poly
+        # Clip the line segments
+        sample.clip_line_fc(sample_poly.layer, transect_gdb)
+
+        site_results_id = "_".join((sample.id, sample.veg_code))
+
+        # Calculate the transect and site/sample statistics from clipped lines
+        for transect in sample.transects:
+            for survey in transect.surveys:
+                survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
+            # msg("Calculating transect results for {}".format(transect.id))
+            transect_results_id = "_".join((transect.id, sample.veg_code))
+            transect_results[transect_results_id] = [
+                transect_results_id,
+                transect.id,
+                sample.veg_code,
+                transect.len,
+                transect.veglen,
+                transect.vegfraction,
+                transect.maxdep_veg,
+                transect.maxdep,
+                transect.mindep_veg,
+                transect.mindep,
+                transect.maxdepflag,
+                transect.mindepflag,
+                site_results_id
+            ]
+    # ---------------- END of Sample Group loops and data calculations ------------------
+
+    # -------------------- Populate Results Tables ----------------------------
     # Populate tables with transect results
-    msg("Populating transect results table with vegetation present results")
+    msg("Populating transect results table")
     cursor_transects = arcpy.da.InsertCursor(transect_results_table, utils.transect_results_fields)
     for id in sorted(transect_results.iterkeys()):
-        print transect_results[id]
+        # print transect_results[id]
         cursor_transects.insertRow(transect_results[id])
     del cursor_transects
 
     # Populate tables with site results
-    msg("Populating site results table with vegetation present results")
+    msg("Populating site results table")
     cursor_sites = arcpy.da.InsertCursor(site_results_table, utils.site_results_fields)
     for id in sorted(site_results.iterkeys()):
-        print site_results[id]
+        # print site_results[id]
         cursor_sites.insertRow(site_results[id])
     del cursor_sites
-
-    # print samp_vegp.sample_ids
-    # print samp_vegp.df.describe()
-    # print samp_vegp.df
-    # print samp_vegp.stats
-    # print samp_vegp.ts_df
-
-    # # --------------- Vegetation absent/trace, samp_sel = 'SUBJ'
-    # samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
-    # # print samp_vegats.ts_df
-    # # print samp_vegats.df
-    # # print samp_vegats.stats
-    #
-    # # ---------------- Veg absent/trace, samp_sel <> 'SUBJ', with transects
-    # samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
-    # # print samp_vegatnst.ts_df
-    # # print samp_vegatnst.df
-    # # print samp_vegatnst.stats
-    #
-    # # -------------------- Veg absent/trace, samp_sel <> 'SUBJ', no transects
-    # samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
-    # # print samp_vegatnsnt.ts_df
-    # # print samp_vegatnsnt.df
-    # # print samp_vegatnsnt.stats
-
-
-    # Get Source Data Tables
-    # samples_list = make_sampleList(svmp_gdb,survey_year,veg_code,sites_file,study,samp_sel)
-
 
     main_elapsed = timeit.default_timer() - main_start_time
     main_elapsed_mins = main_elapsed / 60
     print "Full script elapsed time: {} minutes".format(main_elapsed_mins)
+
 
 if __name__ == '__main__':
 
