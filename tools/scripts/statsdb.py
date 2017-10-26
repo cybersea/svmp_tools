@@ -378,12 +378,18 @@ class Sample(object):
     @property
     def veg_mind_mean(self):
         """ Mean of minimum vegetation depth """
-        return sum(self.mindeps4stats) / self.n_veg_mindep
+        try:
+            return sum(self.mindeps4stats) / self.n_veg_mindep
+        except ZeroDivisionError:
+            return 0.0
 
     @property
     def veg_maxd_mean(self):
         """ Mean of maximum vegetation depth """
-        return sum(self.maxdeps4stats) / self.n_veg_maxdep
+        try:
+            return sum(self.maxdeps4stats) / self.n_veg_maxdep
+        except ZeroDivisionError:
+            return 0.0
 
     @property
     def veg_mind_se(self):
@@ -409,7 +415,10 @@ class Sample(object):
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
         # return max(self.mindeps4stats)
-        return max([depth for depth in self.minvegdeps if depth != utils.NULL_DEPTH])
+        try:
+            return max([depth for depth in self.minvegdeps if depth != utils.NULL_DEPTH])
+        except:
+            return utils.NULL_DEPTH
 
     @property
     def veg_mind_deepest(self):
@@ -417,7 +426,10 @@ class Sample(object):
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
         # return min(self.mindeps4stats)
-        return min([depth for depth in self.minvegdeps if depth != utils.NULL_DEPTH])
+        try:
+            return min([depth for depth in self.minvegdeps if depth != utils.NULL_DEPTH])
+        except:
+            return utils.NULL_DEPTH
 
     @property
     def veg_maxd_shallowest(self):
@@ -425,7 +437,10 @@ class Sample(object):
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
         # return max(self.maxdeps4stats)
-        return max([depth for depth in self.maxvegdeps if depth != utils.NULL_DEPTH])
+        try:
+            return max([depth for depth in self.maxvegdeps if depth != utils.NULL_DEPTH])
+        except:
+            return utils.NULL_DEPTH
 
     @property
     def veg_maxd_deepest(self):
@@ -433,7 +448,10 @@ class Sample(object):
         Note: Counter-intuitive use of max/min because depths below MLLW are negative
         """
         # return min(self.maxdeps4stats)
-        return min([depth for depth in self.maxvegdeps if depth != utils.NULL_DEPTH])
+        try:
+            return min([depth for depth in self.maxvegdeps if depth != utils.NULL_DEPTH])
+        except:
+            return utils.NULL_DEPTH
 
     def _transect_attrs(self, attr):
         """ Fetch attributes from the transects in the group """
@@ -1149,6 +1167,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     ##### For testing
     # site_codes = ['core001','core004','sjs0526','hdc2346','cps1770','cps2173','flats09'] # variety of types
     # site_codes = ['cps1081'] # missing one set of points in sample, but not all
+    site_codes = ['cps2185']
 
     # Dictionary of filters used to select samples to process
     filter = {
@@ -1393,7 +1412,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 transect.mindepflag,
                 site_results_id
             ]
-    # ---------------- END of Sample Group loops and data calculations ------------------
+    ---------------- END of Sample Group loops and data calculations ------------------
 
     # -------------------- Populate Results Tables ----------------------------
     # Populate tables with transect results
@@ -1401,7 +1420,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     cursor_transects = arcpy.da.InsertCursor(transect_results_table, utils.transect_results_fields)
     for id in sorted(transect_results.iterkeys()):
         # print transect_results[id]
-        cursor_transects.insertRow(transect_results[id])
+        try:
+            cursor_transects.insertRow(transect_results[id])
+        except:
+            msg("Problem with tran_results_id: {} \n {}".format(id, transect_results[id]))
+            continue
     del cursor_transects
 
     # Populate tables with site results
@@ -1409,7 +1432,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     cursor_sites = arcpy.da.InsertCursor(site_results_table, utils.site_results_fields)
     for id in sorted(site_results.iterkeys()):
         # print site_results[id]
-        cursor_sites.insertRow(site_results[id])
+        try:
+            cursor_sites.insertRow(site_results[id])
+        except:
+            msg("Problem with site_results_id {} \n {}".format(id, utils.site_results_fields[id]))
+            continue
     del cursor_sites
 
     main_elapsed = timeit.default_timer() - main_start_time
