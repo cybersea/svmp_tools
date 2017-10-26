@@ -1412,7 +1412,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 transect.mindepflag,
                 site_results_id
             ]
-    ---------------- END of Sample Group loops and data calculations ------------------
+    # ---------------- END of Sample Group loops and data calculations ------------------
 
     # -------------------- Populate Results Tables ----------------------------
     # Populate tables with transect results
