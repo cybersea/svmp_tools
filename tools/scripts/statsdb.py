@@ -980,6 +980,7 @@ class Table(object):
 
     def _create_df(self):
         if self.exists:
+            msg("Loading table: {}".format(self.table))
             nparray = arcpy.da.TableToNumPyArray(self.table, self.fields, self.query)
             return pd.DataFrame(nparray)
         else:
