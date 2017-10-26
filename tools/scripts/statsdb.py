@@ -137,7 +137,7 @@ class SampleGroup(object):
         # Vegetation is absent/trace and samp_sel = "SUBJ"
         elif self.group == "ats":
             # vegetation absent/trace
-            vegat_df = veg_df[veg_df[veg_code].isin(["absent","trace"])]
+            vegat_df = veg_df[veg_df[self.veg_code].isin(["absent","trace"])]
             df = samp_df[samp_df[utils.sitevisitidCol].isin(vegat_df[utils.sitevisitidCol])]
             # samp_sel = SUBJ
             df = df[df[utils.sampselCol].isin(["SUBJ"])]
@@ -146,7 +146,7 @@ class SampleGroup(object):
         # Vegetation is absent/trace, samp_sel <> "SUBJ", transects exist
         elif self.group == "atnst":
             # vegetation absent/trace
-            vegat_df = veg_df[veg_df[veg_code].isin(["absent", "trace"])]
+            vegat_df = veg_df[veg_df[self.veg_code].isin(["absent", "trace"])]
             df = samp_df[samp_df[utils.sitevisitidCol].isin(vegat_df[utils.sitevisitidCol])]
             # samp_sel <> 'SUBJ'
             df = df[~df[utils.sampselCol].isin(["SUBJ"])]
@@ -157,7 +157,7 @@ class SampleGroup(object):
         # Vegetation is absent/trace, samp_sel <> "SUBJ", no transects
         elif self.group == "atnsnt":
             # vegetation absent/trace
-            vegat_df = veg_df[veg_df[veg_code].isin(["absent", "trace"])]
+            vegat_df = veg_df[veg_df[self.veg_code].isin(["absent", "trace"])]
             df = samp_df[samp_df[utils.sitevisitidCol].isin(vegat_df[utils.sitevisitidCol])]
             # samp_sel <> 'SUBJ'
             df = df[~df[utils.sampselCol].isin(["SUBJ"])]
@@ -719,7 +719,7 @@ class Survey(object):
         """
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
-                              & (self.ptfc_df[veg_code] == 1)]
+                              & (self.ptfc_df[self.veg_code] == 1)]
             # if df.empty:
             #     return utils.NULL_VEG
             # else:
@@ -734,7 +734,7 @@ class Survey(object):
         """
         if self.ptfc_df is not None:
             df = self.ptfc_df[(self.ptfc_df[utils.videoCol] == 1) & (self.ptfc_df[utils.depInterpCol] != utils.NULL_DEPTH)
-                              & (self.ptfc_df[veg_code] == 1)]
+                              & (self.ptfc_df[self.veg_code] == 1)]
             # if df.empty:
             #     return utils.NULL_VEG
             # else:
@@ -759,7 +759,7 @@ class Survey(object):
             Must have video = 1 and presence of specified vegetation
         """
         if self.lnfc_df is not None:
-            df = self.lnfc_df[(self.lnfc_df[utils.videoCol] == 1) & (self.lnfc_df[veg_code] == 1)]
+            df = self.lnfc_df[(self.lnfc_df[utils.videoCol] == 1) & (self.lnfc_df[self.veg_code] == 1)]
             return df['SHAPE@LENGTH'].sum()
         else:
             return None
@@ -792,7 +792,7 @@ class Survey(object):
                 from_point.ID = int(row[utils.ptidCol])
                 dtsamp = row[utils.datetimesampCol].replace(microsecond=0)
                 pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], dtsamp,
-                                 row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                                 row[utils.depInterpCol], row[utils.videoCol], row[self.veg_code])
                 # print pt_attributes
                 # print("X: {0}, Y: {1}".format(from_point.X, from_point.Y))
                 first_point = False
@@ -811,7 +811,7 @@ class Survey(object):
                 # store the attributes for the current point to be used on next line segment
                 dtsamp = row[utils.datetimesampCol].replace(microsecond=0)
                 pt_attributes = (row[utils.ptidCol], row[utils.surveyidCol], dtsamp,
-                                 row[utils.depInterpCol], row[utils.videoCol], row[veg_code])
+                                 row[utils.depInterpCol], row[utils.videoCol], row[self.veg_code])
                 # print pt_attributes
                 # print("X: {0}, Y: {1}".format(to_point.X, to_point.Y))
 
@@ -1167,7 +1167,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     ##### For testing
     # site_codes = ['core001','core004','sjs0526','hdc2346','cps1770','cps2173','flats09'] # variety of types
     # site_codes = ['cps1081'] # missing one set of points in sample, but not all
-    site_codes = ['cps2185']
+    # site_codes = ['cps2185']
 
     # Dictionary of filters used to select samples to process
     filter = {
