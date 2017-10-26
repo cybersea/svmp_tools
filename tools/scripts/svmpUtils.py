@@ -47,6 +47,66 @@ NULL_DEPTH = -9999
 NULL_VEG = -9999
 NULL_VIDEO = -9999
 
+## Transect_results table fields
+transect_results_fields = [
+    "tran_results_id",
+    "transect_id",
+    "veg_code",
+    "tran_len_ft",
+    "veg_len_ft",
+    "tran_veg_frac",
+    "tran_veg_maxd_ft",
+    "tran_maxd_ft",
+    "tran_veg_mind_ft",
+    "tran_mind_ft",
+    "tran_maxd_qual",
+    "tran_mind_qual",
+    "site_results_id"
+]
+
+# site_results table fields
+site_results_fields = [
+    "site_results_id",
+    "site_samp_id",
+    "veg_code",
+    "veg_area_n_tran",
+    "veg_frac",
+    "samp_area_ft2",
+    "veg_area_ft2",
+    "veg_area_se_ft2",
+    "veg_mind_n_tran",
+    "veg_mind_mean_ft",
+    "veg_mind_deepest_ft",
+    "veg_mind_shallowest_ft",
+    "veg_mind_se_ft",
+    "veg_maxd_n_tran",
+    "veg_maxd_mean_ft",
+    "veg_maxd_deepest_ft",
+    "veg_maxd_shallowest_ft",
+    "veg_maxd_se_ft"
+]
+
+
+# Zero and no data values for site_results table
+site_results_zero = [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    -9999,
+    -9999,
+    -9999,
+    -9999,
+    0,
+    -9999,
+    -9999,
+    -9999,
+    -9999,
+]
+
+
 
 # Spatial Reference
 sr = arcpy.SpatialReference(2927) # NAD_1983_HARN_StatePlane_Washington_South_FIPS_4602_Fee

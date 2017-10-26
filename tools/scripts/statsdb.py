@@ -15,6 +15,15 @@ import os
 import timeit
 
 
+def create_output_table(type, timestamp, gdb):
+    if type == "site":
+        basename = "site_results"
+    if type == "transect":
+        basename = "transect_results"
+    tablename = "_".join((basename, timestamp))
+    template = os.path.join(gdb, basename)
+    arcpy.CreateTable_management(gdb, tablename, template)
+    return os.path.join(gdb, tablename)
 
 def create_template_ln(gdb, field_names, field_types, field_lengths):
     """ Create a template feature class for the line features"""
@@ -244,6 +253,7 @@ class Sample(object):
         self.transects = [] # list of associated sample objects
         self.lnfc_path = ""
         self.lnfc_clip_path = ""
+
 
     def __repr__(self):
         return repr((self.id, self.transect_ids))
@@ -1141,6 +1151,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     msg(filter)
     samples_filtered_df = filter_samples(svmp_tables, filter)
 
+
     # # ------- List of available point feature classes and associated survey_ids -------
     #  NOTE:  This is quite slow -- may be able to improve by re-writing with da.Walk approach
     msg("Generating list of point transect features in {0}".format(transect_gdb))
@@ -1160,7 +1171,18 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     ln_clip_field_names = ['OID@', 'SHAPE@LENGTH'] + base_field_names
 
     #----- Create the template feature class for the temporary transect lines
+    msg("Creating a template feature class for temporary transect lines")
     template_ln = create_template_ln(transect_gdb, base_field_names, base_field_types, base_field_lengths)
+
+    #--------------- Create the Results Data Table ---------------------------------
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    site_results_table = create_output_table("site", timestamp, stats_gdb)
+    transect_results_table = create_output_table("transect", timestamp, stats_gdb)
+    print site_results_table
+    print transect_results_table
+    # ----------- Initialize dictionary to hold transect and site results
+    transect_results = {}
+    site_results = {}
 
     # ------- Create groups of samples and associated transects/surveys for processing --------
 
@@ -1207,40 +1229,93 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         # Clip the line segments
         sample.clip_line_fc(sample_poly.layer, transect_gdb)
 
+        site_results_id = "_".join((sample.id, sample.veg_code))
+
         # Calculate the transect and site/sample statistics from clipped lines
         for transect in sample.transects:
             for survey in transect.surveys:
                 survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
             msg("Calculating transect results for {}".format(transect.id))
-            print transect.pts_exist
-            print "Max depth: {}".format(transect.maxdep)
-            print "Min depth: {}".format(transect.mindep)
-            print "Max Veg depth: {}".format(transect.maxdep_veg)
-            print "Min Veg depth: {}".format(transect.mindep_veg)
-            print "Max depth Quality Flag: {}".format(transect.maxdepflag)
-            print "Min depth Quality Flag: {}".format(transect.mindepflag)
-            print "Veg length: {}".format(transect.veglen)
-            print "Survey length: {}".format(transect.len)
-            print "Veg fraction: {}".format(transect.vegfraction)
+            # print transect.pts_exist
+            # print "Max depth: {}".format(transect.maxdep)
+            # print "Min depth: {}".format(transect.mindep)
+            # print "Max Veg depth: {}".format(transect.maxdep_veg)
+            # print "Min Veg depth: {}".format(transect.mindep_veg)
+            # print "Max depth Quality Flag: {}".format(transect.maxdepflag)
+            # print "Min depth Quality Flag: {}".format(transect.mindepflag)
+            # print "Veg length: {}".format(transect.veglen)
+            # print "Survey length: {}".format(transect.len)
+            # print "Veg fraction: {}".format(transect.vegfraction)
+            transect_results_id = "_".join((transect.id, sample.veg_code))
+            transect_results[transect_results_id] = [
+                transect_results_id,
+                transect.id,
+                sample.veg_code,
+                transect.len,
+                transect.veglen,
+                transect.vegfraction,
+                transect.maxdep_veg,
+                transect.maxdep,
+                transect.mindep_veg,
+                transect.mindep,
+                transect.maxdepflag,
+                transect.mindepflag,
+                site_results_id
+            ]
 
-        print "Sample Transect count (n): {}".format(sample.n_area)
-        print "Sample Veg Fraction: {}".format(sample.veg_fraction)
-        print "Sample Poly Area: {}".format(sample.sample_area)
-        print "Sample Veg Area: {}".format(sample.veg_area)
-        print "Sample Var Veg Fraction: {}".format(sample.var_vegfraction)
-        print "Sample Var Veg Area: {}".format(sample.var_vegarea)
-        print "Sample SE Veg Area: {}".format(sample.se_vegarea)
-        print "veg_mind_n_tran: {}".format(sample.n_veg_mindep)
-        print "veg_mind_mean_ft: {}".format(sample.veg_mind_mean)
-        print "veg_mind_deepest_ft: {}".format(sample.veg_mind_deepest)
-        print "veg_mind_shallowest_ft: {}".format(sample.veg_mind_shallowest)
-        print "veg_mind_se_ft: {}".format(sample.veg_mind_se)
-        print "veg_maxd_n_tran: {}".format(sample.n_veg_maxdep)
-        print "veg_maxd_mean_ft: {}".format(sample.veg_maxd_mean)
-        print "veg_maxd_deepest_ft: {}".format(sample.veg_maxd_deepest)
-        print "veg_maxd_shallowest_ft: {}".format(sample.veg_maxd_shallowest)
-        print "veg_maxd_se_ft: {}".format(sample.veg_maxd_se)
+        # print "Sample Transect count (n): {}".format(sample.n_area)
+        # print "Sample Veg Fraction: {}".format(sample.veg_fraction)
+        # print "Sample Poly Area: {}".format(sample.sample_area)
+        # print "Sample Veg Area: {}".format(sample.veg_area)
+        # print "Sample Var Veg Fraction: {}".format(sample.var_vegfraction)
+        # print "Sample Var Veg Area: {}".format(sample.var_vegarea)
+        # print "Sample SE Veg Area: {}".format(sample.se_vegarea)
+        # print "veg_mind_n_tran: {}".format(sample.n_veg_mindep)
+        # print "veg_mind_mean_ft: {}".format(sample.veg_mind_mean)
+        # print "veg_mind_deepest_ft: {}".format(sample.veg_mind_deepest)
+        # print "veg_mind_shallowest_ft: {}".format(sample.veg_mind_shallowest)
+        # print "veg_mind_se_ft: {}".format(sample.veg_mind_se)
+        # print "veg_maxd_n_tran: {}".format(sample.n_veg_maxdep)
+        # print "veg_maxd_mean_ft: {}".format(sample.veg_maxd_mean)
+        # print "veg_maxd_deepest_ft: {}".format(sample.veg_maxd_deepest)
+        # print "veg_maxd_shallowest_ft: {}".format(sample.veg_maxd_shallowest)
+        # print "veg_maxd_se_ft: {}".format(sample.veg_maxd_se)
+        site_results[site_results_id] = [
+            site_results_id,
+            sample.id,
+            sample.veg_code,
+            sample.n_area,
+            sample.veg_fraction,
+            sample.sample_area,
+            sample.veg_area,
+            sample.se_vegarea,
+            sample.n_veg_mindep,
+            sample.veg_mind_mean,
+            sample.veg_mind_deepest,
+            sample.veg_mind_shallowest,
+            sample.veg_mind_se,
+            sample.n_veg_maxdep,
+            sample.veg_maxd_mean,
+            sample.veg_maxd_deepest,
+            sample.veg_maxd_shallowest,
+            sample.veg_maxd_se
+        ]
 
+    # Populate tables with transect results
+    msg("Populating transect results table with vegetation present results")
+    cursor_transects = arcpy.da.InsertCursor(transect_results_table, utils.transect_results_fields)
+    for id in sorted(transect_results.iterkeys()):
+        print transect_results[id]
+        cursor_transects.insertRow(transect_results[id])
+    del cursor_transects
+
+    # Populate tables with site results
+    msg("Populating site results table with vegetation present results")
+    cursor_sites = arcpy.da.InsertCursor(site_results_table, utils.site_results_fields)
+    for id in sorted(site_results.iterkeys()):
+        print site_results[id]
+        cursor_sites.insertRow(site_results[id])
+    del cursor_sites
 
     # print samp_vegp.sample_ids
     # print samp_vegp.df.describe()
@@ -1248,19 +1323,19 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # print samp_vegp.stats
     # print samp_vegp.ts_df
 
-    # # Vegetation absent/trace, samp_sel = 'SUBJ'
+    # # --------------- Vegetation absent/trace, samp_sel = 'SUBJ'
     # samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
     # # print samp_vegats.ts_df
     # # print samp_vegats.df
     # # print samp_vegats.stats
     #
-    # # Veg absent/trace, samp_sel <> 'SUBJ', transects
+    # # ---------------- Veg absent/trace, samp_sel <> 'SUBJ', with transects
     # samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
     # # print samp_vegatnst.ts_df
     # # print samp_vegatnst.df
     # # print samp_vegatnst.stats
     #
-    # # Veg absent/trace, samp_sel <> 'SUBJ', no transects
+    # # -------------------- Veg absent/trace, samp_sel <> 'SUBJ', no transects
     # samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
     # # print samp_vegatnsnt.ts_df
     # # print samp_vegatnsnt.df
