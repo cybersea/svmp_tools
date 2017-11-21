@@ -1206,8 +1206,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
     #--------------- Create the Results Data Table ---------------------------------
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    site_results_table = create_output_table("site", timestamp, survey_year + "_present", stats_gdb)
-    transect_results_table = create_output_table("transect", timestamp, survey_year + "_present", stats_gdb)
+    site_results_table = create_output_table("site", timestamp, survey_year, stats_gdb)
+    transect_results_table = create_output_table("transect", timestamp, survey_year, stats_gdb)
     # ----------- Initialize dictionary to hold transect and site results
     transect_results = {}
     site_results = {}
@@ -1449,17 +1449,20 @@ if __name__ == '__main__':
 
     # Input parameter 1:  Geodatabase with individual transect point data -- REQUIRED
     # transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
-    transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_2014_2015.mdb"
+    # transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_2014_2015.mdb"
+    transect_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/tran_points_NO_RESULTS.mdb"
 
     # Input parameter 2:  SVMP Geodatabase with Base Tables -- REQUIRED
-    svmp_gdb = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815_AB.mdb"
+    # svmp_gdb = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815_AB.mdb"
+    svmp_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/SVMP_DB_v6_20171118_temp.mdb"
 
     # Input parameter 3: Site Statistics Geodatabase with Template results tables -- REQUIRED
     #stats_gdb = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
-    stats_gdb = "Y:/projects/dnr_svmp2016/data/out/svmp_sitesdb_test.mdb"
+    # stats_gdb = "Y:/projects/dnr_svmp2016/data/out/svmp_sitesdb_test.mdb"
+    stats_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/svmp_sitesdb_debugnoresults.mdb"
 
     # Input parameter 4: Survey Year to be Processed -- REQUIRED
-    survey_year = "2014" # "2015"
+    survey_year = "2006" # "2014" # "2015"
 
     # Input parameter 5: Vegetation Type to be Processed -- REQUIRED
     veg_code = "nativesg"
