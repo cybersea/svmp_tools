@@ -274,10 +274,10 @@ class TransectAndSiteStatistics(object):
         # )
 
         # Default values  -- Change or remove these for DNR paths
-        transect_gdb.value = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
-        svmp_gdb.value = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815_AB.mdb"
-        stats_gdb.value = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
-        sites_file.value = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
+        # transect_gdb.value = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
+        # svmp_gdb.value = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815_AB.mdb"
+        # stats_gdb.value = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
+        # sites_file.value = "Y:/projects/dnr_svmp2016/data/2014_test/sites2process_all.txt"
         # survey_year.value = 2020
         # veg_code.value = "veg"
 
