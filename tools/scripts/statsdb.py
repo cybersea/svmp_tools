@@ -244,7 +244,7 @@ class Sample(object):
     transect_ids -- a list of transect ids associated with the sample
     lnfc -- feature class name for line feature class
     lnfc_clipped -- feature class name for clipped line feature class
-    sample_poly -- sample polygon
+    poly -- sample polygon
     """
 
     def __init__(self, id):
@@ -253,6 +253,7 @@ class Sample(object):
         self.transects = [] # list of associated sample objects
         self.lnfc_path = ""
         self.lnfc_clip_path = ""
+        self.poly = None
 
 
     def __repr__(self):
@@ -312,7 +313,7 @@ class Sample(object):
     @property
     def sample_area(self):
         """ Area of the sample polygon """
-        return self.sample_poly.area
+        return self.poly.area
 
     @property
     def veg_area(self):
@@ -929,6 +930,7 @@ class SamplePoly(object):
     gdb -- geodatabase containing the feature class
     feat_lyr -- an in-memory feature layer of the sample polygon
     area = area of the sample polygon
+    exists = flag for existence of the sample polygon feature
 
 
     """
@@ -955,6 +957,15 @@ class SamplePoly(object):
         """ Area of the sample polygon"""
         features = arcpy.da.FeatureClassToNumPyArray(self.layer, "SHAPE@AREA")
         return features["SHAPE@AREA"].sum()
+
+    @property
+    def exists(self):
+        """Flag for existence of the sample polygon"""
+        if self.layer:
+            if len([row for row in arcpy.da.SearchCursor(self.layer, '*')]) > 0:
+                return True
+        else:
+            return False
 
 class Table(object):
     """ Represents a source SVMP data table
@@ -1073,9 +1084,13 @@ def del_fc(fc):
         arcpy.Delete_management(fc)
 
 
-def msg(msg):
+def msg(text):
     """ General message accumulator"""
-    arcpy.AddMessage(msg)
+    arcpy.AddMessage(text)
+
+def warn(text):
+    """ Warning message"""
+    arcpy.AddWarning(text)
 
 
 def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel):
@@ -1239,7 +1254,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                     # ------------------------------------------------------------
                     survey.pts_exist = True
                 except KeyError:
-                    msg("Missing transect point feature for survey: {}".format(survey.id))
+                    warn("Missing transect point feature for survey: {}".format(survey.id))
                     survey.pts_exist = False
                     continue
 
@@ -1250,14 +1265,19 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
         if not any(sample.transectpts_exist):
             """ If there are no point features for the sample, skip the rest of the calcs """
-            msg("Missing all point features for Sample {} \n\t".format(sample.id))
+            warn("Missing all point features for Sample {} \n\t".format(sample.id))
             continue
 
         # Get the associated sample polygon
-        sample_poly = SamplePoly(sample.id, svmp_gdb)
-        sample.sample_poly = sample_poly
+        # sample_poly = SamplePoly(sample.id, svmp_gdb)
+        sample.poly = SamplePoly(sample.id, svmp_gdb)
+        if not sample.poly.exists:
+            """ If the sample polygon does not exist, skip the rest of the calcs """
+            warn("Missing sample polygon {}".format(sample.poly.id))
+            continue
+
         # Clip the line segments
-        sample.clip_line_fc(sample_poly.layer, transect_gdb)
+        sample.clip_line_fc(sample.poly.layer, transect_gdb)
 
         site_results_id = "_".join((sample.id, sample.veg_code))
 
@@ -1381,14 +1401,18 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
         if not any(sample.transectpts_exist):
             """ If there are no point features for the sample, skip the rest of the calcs """
-            msg("Missing all point features for Sample {} \n\t".format(sample.id))
+            warn("Missing all point features for Sample {} \n\t".format(sample.id))
             continue
 
         # Get the associated sample polygon
-        sample_poly = SamplePoly(sample.id, svmp_gdb)
-        sample.sample_poly = sample_poly
+        # sample_poly = SamplePoly(sample.id, svmp_gdb)
+        sample.poly = SamplePoly(sample.id, svmp_gdb)
+        if not sample.poly.exists:
+            """ If the sample polygon does not exist, skip the rest of the calcs """
+            warn("Missing sample polygon {}".format(sample.poly.id))
+            continue
         # Clip the line segments
-        sample.clip_line_fc(sample_poly.layer, transect_gdb)
+        sample.clip_line_fc(sample.poly.layer, transect_gdb)
 
         site_results_id = "_".join((sample.id, sample.veg_code))
 
@@ -1424,7 +1448,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         try:
             cursor_transects.insertRow(transect_results[id])
         except:
-            msg("Problem with tran_results_id: {} \n {}".format(id, transect_results[id]))
+            warn("Problem with tran_results_id: {} \n {}".format(id, transect_results[id]))
             continue
     del cursor_transects
 
@@ -1436,7 +1460,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         try:
             cursor_sites.insertRow(site_results[id])
         except:
-            msg("Problem with site_results_id {} \n {}".format(id, utils.site_results_fields[id]))
+            warn("Problem with site_results_id {} \n {}".format(id, utils.site_results_fields[id]))
             continue
     del cursor_sites
 
