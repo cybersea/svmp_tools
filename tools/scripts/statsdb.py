@@ -1263,7 +1263,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                     # ------------------------------------------------------------
                     survey.pts_exist = True
                 except KeyError:
-                    warn("Missing transect point feature for survey: {}".format(survey.id))
+                    warn("No transect point features found for survey_id: {}".format(survey.id))
                     survey.pts_exist = False
                     continue
 
