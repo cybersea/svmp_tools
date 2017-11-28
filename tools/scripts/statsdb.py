@@ -1092,6 +1092,12 @@ def warn(text):
     """ Warning message"""
     arcpy.AddWarning(text)
 
+def err(text):
+    """Error message"""
+    arcpy.AddError(text)
+    raise SystemExit
+    #raise arcpy.ExecuteError -- does not exit cleanly
+
 
 def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel):
     # Main function to run code
@@ -1198,6 +1204,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     msg("Generating list of samples based on user parameters")
     msg(filter)
     samples_filtered_df = filter_samples(svmp_tables, filter)
+    if samples_filtered_df.empty:
+        """ Quit script if there are no samples selected from the user prameters"""
+        err("There are no samples that meet the specified combination of input parameters. Exiting script.")
 
     # # ------- List of available point feature classes and associated survey_ids -------
     #  NOTE:  This is quite slow -- may be able to improve by re-writing with da.Walk approach
