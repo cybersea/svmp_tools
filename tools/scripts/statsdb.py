@@ -14,6 +14,8 @@ import arcpy
 import os
 import timeit
 
+arcpy.env.overwriteOutput = True
+
 
 def create_output_table(type, timestamp, suffix, gdb):
     if type == "site":
@@ -1287,6 +1289,12 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
 
         # Clip the line segments
         sample.clip_line_fc(sample.poly.layer, transect_gdb)
+        # Check to make sure there were output transect lines
+        if len([row for row in arcpy.da.SearchCursor(sample.lnfc_clip_path, '*')]) == 0:
+            warn_text = "No transect lines in clipped feature class {}".format(sample.lnfc_clip_path)
+            warn_text += "\nTransects may be outside sample polygon. Skipping transect result calculations."
+            warn(warn_text)
+            continue
 
         site_results_id = "_".join((sample.id, sample.veg_code))
 
@@ -1392,14 +1400,20 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             continue
 
         # Get the associated sample polygon
-        # sample_poly = SamplePoly(sample.id, svmp_gdb)
         sample.poly = SamplePoly(sample.id, svmp_gdb)
         if not sample.poly.exists:
             """ If the sample polygon does not exist, skip the rest of the calcs """
             warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
             continue
+
         # Clip the line segments
         sample.clip_line_fc(sample.poly.layer, transect_gdb)
+        # Check to make sure there were output transect lines
+        if len([row for row in arcpy.da.SearchCursor(sample.lnfc_clip_path, '*')]) == 0:
+            warn_text = "No transect lines in clipped feature class {}".format(sample.lnfc_clip_path)
+            warn_text += "\nTransects may be outside sample polygon. Skipping transect result calculations."
+            warn(warn_text)
+            continue
 
         site_results_id = "_".join((sample.id, sample.veg_code))
 
@@ -1463,6 +1477,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         del cursor_sites
     else:
         warn("No site results calculated. No output site_results table.")
+
+    # Remove template line feature class
+    del_fc(template_ln)
 
     main_elapsed = timeit.default_timer() - main_start_time
     main_elapsed_mins = main_elapsed / 60
