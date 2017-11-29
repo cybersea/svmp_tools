@@ -1044,11 +1044,11 @@ def ratioEstVar(L_list, l_list, pBarHat, m, LBar):
     Variable names follow DNR SVMP nomenclature from
     "Puget Sound Vegetation Monitoring Project:  2000 - 2002 Monitoring Report"
     See Appendix L, Page 3
-    :param L_list:
-    :param l_list:
-    :param pBarHat:
-    :param m:
-    :param LBar:
+    :param L_list: list of sample lengths
+    :param l_list: list of vegetation lengths
+    :param pBarHat: estimated mean veg fraction (sum veg lengths / sum sample lengths
+    :param m: number of transects
+    :param LBar: mean transect length
     :return: estvar
     """
     numerator = 0
@@ -1056,7 +1056,10 @@ def ratioEstVar(L_list, l_list, pBarHat, m, LBar):
     for l, L in zip(l_list, L_list):
         numerator = ((l - (pBarHat * L)) ** 2) + numerator
     denominator = (m - 1) * m * (LBar ** 2)
-    estvar = numerator / denominator
+    try:
+        estvar = numerator / denominator
+    except ZeroDivisionError:
+        estvar = utils.NULL_VAR
     return estvar
 
 def paramstr2list(param, delim=";"):
@@ -1205,7 +1208,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     msg(filter)
     samples_filtered_df = filter_samples(svmp_tables, filter)
     if samples_filtered_df.empty:
-        """ Quit script if there are no samples selected from the user prameters"""
+        """ Quit script if there are no samples selected from the user parameters"""
         err("There are no samples that meet the specified combination of input parameters. Exiting script.")
 
     # # ------- List of available point feature classes and associated survey_ids -------
@@ -1228,10 +1231,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     msg("Creating a template feature class for temporary transect lines")
     template_ln = create_template_ln(transect_gdb, base_field_names, base_field_types, base_field_lengths)
 
-    #--------------- Create the Results Data Table ---------------------------------
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    site_results_table = create_output_table("site", timestamp, survey_year, stats_gdb)
-    transect_results_table = create_output_table("transect", timestamp, survey_year, stats_gdb)
     # ----------- Initialize dictionary to hold transect and site results
     transect_results = {}
     site_results = {}
@@ -1242,6 +1241,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     #----------------- Veg present Samples  --------------------------------------------
     # Calculate all values for site_results and transect_results table
     samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
+    if samp_vegp.samples:
+        msg("--- Samples with {} = present".format(veg_code))
     for sample in samp_vegp.samples:
         sample.veg_code = samp_vegp.veg_code
         msg("Processing Sample ID: {}".format(sample.id))
@@ -1278,11 +1279,10 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             continue
 
         # Get the associated sample polygon
-        # sample_poly = SamplePoly(sample.id, svmp_gdb)
         sample.poly = SamplePoly(sample.id, svmp_gdb)
         if not sample.poly.exists:
             """ If the sample polygon does not exist, skip the rest of the calcs """
-            warn("Missing sample polygon {}".format(sample.poly.id))
+            warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
             continue
 
         # Clip the line segments
@@ -1294,17 +1294,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         for transect in sample.transects:
             for survey in transect.surveys:
                 survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
-            # msg("Calculating transect results for {}".format(transect.id))
-            # print transect.pts_exist
-            # print "Max depth: {}".format(transect.maxdep)
-            # print "Min depth: {}".format(transect.mindep)
-            # print "Max Veg depth: {}".format(transect.maxdep_veg)
-            # print "Min Veg depth: {}".format(transect.mindep_veg)
-            # print "Max depth Quality Flag: {}".format(transect.maxdepflag)
-            # print "Min depth Quality Flag: {}".format(transect.mindepflag)
-            # print "Veg length: {}".format(transect.veglen)
-            # print "Survey length: {}".format(transect.len)
-            # print "Veg fraction: {}".format(transect.vegfraction)
             transect_results_id = "_".join((transect.id, sample.veg_code))
             transect_results[transect_results_id] = [
                 transect_results_id,
@@ -1322,23 +1311,6 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 site_results_id
             ]
 
-        # print "Sample Transect count (n): {}".format(sample.n_area)
-        # print "Sample Veg Fraction: {}".format(sample.veg_fraction)
-        # print "Sample Poly Area: {}".format(sample.sample_area)
-        # print "Sample Veg Area: {}".format(sample.veg_area)
-        # print "Sample Var Veg Fraction: {}".format(sample.var_vegfraction)
-        # print "Sample Var Veg Area: {}".format(sample.var_vegarea)
-        # print "Sample SE Veg Area: {}".format(sample.se_vegarea)
-        # print "veg_mind_n_tran: {}".format(sample.n_veg_mindep)
-        # print "veg_mind_mean_ft: {}".format(sample.veg_mind_mean)
-        # print "veg_mind_deepest_ft: {}".format(sample.veg_mind_deepest)
-        # print "veg_mind_shallowest_ft: {}".format(sample.veg_mind_shallowest)
-        # print "veg_mind_se_ft: {}".format(sample.veg_mind_se)
-        # print "veg_maxd_n_tran: {}".format(sample.n_veg_maxdep)
-        # print "veg_maxd_mean_ft: {}".format(sample.veg_maxd_mean)
-        # print "veg_maxd_deepest_ft: {}".format(sample.veg_maxd_deepest)
-        # print "veg_maxd_shallowest_ft: {}".format(sample.veg_maxd_shallowest)
-        # print "veg_maxd_se_ft: {}".format(sample.veg_maxd_se)
         site_results[site_results_id] = [
             site_results_id,
             sample.id,
@@ -1363,6 +1335,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # --------------- Vegetation absent/trace, samp_sel = 'SUBJ' ---------------------
     # Assign site_results zeros and no data values.  No entries in transect_results table
     samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
+    if samp_vegats.samples:
+        msg("--- Samples with {} = trace/absent and samp_sel = 'SUBJ'".format(veg_code))
     for sample in samp_vegats.samples:
         sample.veg_code = samp_vegats.veg_code
         msg("Processing Sample ID: {}".format(sample.id))
@@ -1372,6 +1346,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # ------------- Veg absent/trace, samp_sel <> 'SUBJ', no transects ---------------
     # Assign site_results zeros and no data values.  No entries in transect_results table
     samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
+    if samp_vegatnsnt.samples:
+        msg("--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. No transect points".format(veg_code))
     for sample in samp_vegatnsnt.samples:
         sample.veg_code = samp_vegatnsnt.veg_code
         msg("Processing Sample ID: {}".format(sample.id))
@@ -1381,6 +1357,8 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # ----------- Veg absent/trace, samp_sel <> 'SUBJ', with transects --------------
     # Assign site_results zeros and no data values.  Calculate transect_results
     samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
+    if samp_vegatnst.samples:
+        msg("--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. With transect points".format(veg_code))
     for sample in samp_vegatnst.samples:
         sample.veg_code = samp_vegatnst.veg_code
         msg("Processing Sample ID: {}".format(sample.id))
@@ -1418,7 +1396,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         sample.poly = SamplePoly(sample.id, svmp_gdb)
         if not sample.poly.exists:
             """ If the sample polygon does not exist, skip the rest of the calcs """
-            warn("Missing sample polygon {}".format(sample.poly.id))
+            warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
             continue
         # Clip the line segments
         sample.clip_line_fc(sample.poly.layer, transect_gdb)
@@ -1448,30 +1426,43 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             ]
     # ---------------- END of Sample Group loops and data calculations ------------------
 
-    # -------------------- Populate Results Tables ----------------------------
-    # Populate tables with transect results
-    msg("Populating transect results table: \n {} ".format(transect_results_table))
-    cursor_transects = arcpy.da.InsertCursor(transect_results_table, utils.transect_results_fields)
-    for id in sorted(transect_results.iterkeys()):
-        # print transect_results[id]
-        try:
-            cursor_transects.insertRow(transect_results[id])
-        except:
-            warn("Problem with tran_results_id: {} \n {}".format(id, transect_results[id]))
-            continue
-    del cursor_transects
 
-    # Populate tables with site results
-    msg("Populating site results table: \n {} ".format(site_results_table))
-    cursor_sites = arcpy.da.InsertCursor(site_results_table, utils.site_results_fields)
-    for id in sorted(site_results.iterkeys()):
-        # print site_results[id]
-        try:
-            cursor_sites.insertRow(site_results[id])
-        except:
-            warn("Problem with site_results_id {} \n {}".format(id, utils.site_results_fields[id]))
-            continue
-    del cursor_sites
+    # -------------------- Populate Results Tables ----------------------------
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    if transect_results:
+        # Create transect results table
+        transect_results_table = create_output_table("transect", timestamp, survey_year, stats_gdb)
+        # Populate tables with transect results
+        msg("--- Populating transect results table: \n {} ".format(transect_results_table))
+        cursor_transects = arcpy.da.InsertCursor(transect_results_table, utils.transect_results_fields)
+        for id in sorted(transect_results.iterkeys()):
+            # print transect_results[id]
+            try:
+                cursor_transects.insertRow(transect_results[id])
+            except:
+                warn("Problem with tran_results_id: {} \n {}".format(id, transect_results[id]))
+                continue
+        del cursor_transects
+    else:
+        warn("No transect results calculated. No output transect_results table.")
+
+    if site_results:
+        # Create site results table
+        site_results_table = create_output_table("site", timestamp, survey_year, stats_gdb)
+        # Populate tables with site results
+        msg("--- Populating site results table: \n {} ".format(site_results_table))
+        cursor_sites = arcpy.da.InsertCursor(site_results_table, utils.site_results_fields)
+        for id in sorted(site_results.iterkeys()):
+            # print site_results[id]
+            try:
+                cursor_sites.insertRow(site_results[id])
+            except:
+                warn("Problem with site_results_id {} \n {}".format(id, utils.site_results_fields[id]))
+                continue
+        del cursor_sites
+    else:
+        warn("No site results calculated. No output site_results table.")
 
     main_elapsed = timeit.default_timer() - main_start_time
     main_elapsed_mins = main_elapsed / 60
@@ -1495,7 +1486,7 @@ if __name__ == '__main__':
     stats_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/svmp_sitesdb_debugnoresults.mdb"
 
     # Input parameter 4: Survey Year to be Processed -- REQUIRED
-    survey_year = "2006" # "2014" # "2015"
+    survey_year = "2013" # "2014" # "2015"
 
     # Input parameter 5: Vegetation Type to be Processed -- REQUIRED
     veg_code = "nativesg"

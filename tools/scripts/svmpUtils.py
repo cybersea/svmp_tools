@@ -46,6 +46,7 @@ samppolyFC = 'samp_polygons'
 NULL_DEPTH = -9999
 NULL_VEG = -9999
 NULL_VIDEO = -9999
+NULL_VAR = -9999
 
 ## Transect_results table fields
 transect_results_fields = [
