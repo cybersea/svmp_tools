@@ -129,15 +129,30 @@ def unique_values_np(table, field):
 
 def tables_fcs_list(gdb):
     # Get list of tables and feature classes in a geodatabase
-    #Save initial state of workspace
-    initial_ws = arcpy.env.workspace
+    tables = []
+    fcs = []
+    # -------- Initial Code --------------
+    # #Save initial state of workspace
+    # initial_ws = arcpy.env.workspace
+    #
+    # #change workspace to input geodatabase
+    # arcpy.env.workspace = gdb
+    # tables = arcpy.ListTables()
+    # fcs = arcpy.ListFeatureClasses()
+    # #reset workspace back to original
+    # arcpy.env.workspace = initial_ws
+    #----------------------------------------------
 
-    #change workspace to input geodatabase
-    arcpy.env.workspace = gdb
-    tables = arcpy.ListTables()
-    fcs = arcpy.ListFeatureClasses()
-    #reset workspace back to original
-    arcpy.env.workspace = initial_ws
+    # --------  New approach ------------------------------------
+    #------  Increased speed by ~38 seconds ------------------------------
+    for path, path_names, data_names in arcpy.da.Walk(gdb, "FeatureClass"):
+        for data_name in data_names:
+            fcs.append(data_name)
+
+    for path, path_names, data_names in arcpy.da.Walk(gdb, "Table"):
+        for data_name in data_names:
+            tables.append(data_name)
+    #------  Increased speed by ~38 seconds ------------------------------
 
     return {"tables":tables,"fcs":fcs,"both":tables + fcs}
 
