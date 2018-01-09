@@ -75,11 +75,11 @@ class TransectDatatoPtFC(object):
         )
 
         # Default values  -- Change or remove these for DNR paths
-        in_dir.value = "Y:/projects/dnr_svmp2016/data/2014_test/site_folders"
-        sites_file.value = os.path.join("Y:/projects/dnr_svmp2016/data/2014_test", "sites2process_all.txt")
-        vegcode_table.value = "Y:/projects/dnr_svmp2016/db/SVMP_2000_2015_DB.v4_20170109/SVMP_DB_v4_20170109.mdb/veg_codes"
-        out_gdb.value = "Y:/projects/dnr_svmp2016/data/2014_test/2014_test_pgdb.mdb"
-        err_dir.value = "Y:/projects/dnr_svmp2016/data/2014_test/site_folders"
+        # in_dir.value = "Y:/projects/dnr_svmp2016/data/2014_test/site_folders"
+        # sites_file.value = os.path.join("Y:/projects/dnr_svmp2016/data/2014_test", "sites2process_all.txt")
+        # vegcode_table.value = "Y:/projects/dnr_svmp2016/db/SVMP_2000_2015_DB.v4_20170109/SVMP_DB_v4_20170109.mdb/veg_codes"
+        # out_gdb.value = "Y:/projects/dnr_svmp2016/data/2014_test/2014_test_pgdb.mdb"
+        # err_dir.value = "Y:/projects/dnr_svmp2016/data/2014_test/site_folders"
 
         params = [in_dir, sites_file, vegcode_table, out_gdb, err_dir]
 
@@ -264,14 +264,6 @@ class TransectAndSiteStatistics(object):
         )
         samp_sel.filter.type = "ValueList"
         samp_sel.enabled = False # Disabled until value in svmp_gdb
-
-        # err_dir = arcpy.Parameter(
-        #     displayName="Output Error Log Directory",
-        #     name="err_dir",
-        #     datatype="Folder",
-        #     parameterType="Required",
-        #     direction="Input"
-        # )
 
         # Default values  -- Change or remove these for DNR paths
         # transect_gdb.value = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
