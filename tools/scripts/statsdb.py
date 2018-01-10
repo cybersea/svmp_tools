@@ -1248,8 +1248,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     for sample in samp_vegp.samples:
         sample.veg_code = samp_vegp.veg_code
         msg("Processing Sample ID: {}".format(sample.id))
+
         # Create an empty line feature class for the sample transects/surveys
-        lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
+        # lnfc_path = sample.make_line_fc(template_ln, transect_gdb)  # output to transect point geodatabase
+        lnfc_path = sample.make_line_fc(template_ln) # use in-memory location
+
         # Get point data associated with each survey/transect and create line features
         for transect in sample.transects:
             transect.veg_code = sample.veg_code
@@ -1260,14 +1263,11 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                     survey.ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
                     survey.ptfc_path = os.path.join(surveypt_fcs.gdb,
                                                     survey.ptfc)  # full path to survey point feature class
-                    # ----- for testing ONLY, specify input point feature class ---------------
-                    # survey.ptfc = "core004_2014_01_transect_pt"
-                    # survey.ptfc_path = os.path.join(transect_gdb, survey.ptfc)
-                    # ------------------------------------------------------------
                     survey.pts_exist = True
                 except KeyError:
                     warn("No transect point features found for survey_id: {}".format(survey.id))
                     survey.pts_exist = False
+                    del_fc(sample.lnfc_path)
                     continue
 
                 # Get pandas data frame of the survey's points and specified attributes
@@ -1278,6 +1278,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         if not any(sample.transectpts_exist):
             """ If there are no point features for the sample, skip the rest of the calcs """
             warn("Missing all point features for Sample {} \n\t".format(sample.id))
+            del_fc(sample.lnfc_path)
             continue
 
         # Get the associated sample polygon
@@ -1285,15 +1286,20 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         if not sample.poly.exists:
             """ If the sample polygon does not exist, skip the rest of the calcs """
             warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
+            del_fc(sample.lnfc_path)
             continue
 
         # Clip the line segments
-        sample.clip_line_fc(sample.poly.layer, transect_gdb)
+        # sample.clip_line_fc(sample.poly.layer, transect_gdb) # output to transect point geodatabase
+        sample.clip_line_fc(sample.poly.layer) # output to in-memory workspace
+
         # Check to make sure there were output transect lines
         if len([row for row in arcpy.da.SearchCursor(sample.lnfc_clip_path, '*')]) == 0:
             warn_text = "No transect lines in clipped feature class {}".format(sample.lnfc_clip_path)
             warn_text += "\nTransects may be outside sample polygon. Skipping transect result calculations."
             warn(warn_text)
+            del_fc(sample.lnfc_path)
+            del_fc(sample.lnfc_clip_path)
             continue
 
         site_results_id = "_".join((sample.id, sample.veg_code))
@@ -1340,6 +1346,10 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
             sample.veg_maxd_se
         ]
 
+        # Delete line feature class
+        del_fc(sample.lnfc_path)
+        del_fc(sample.lnfc_clip_path)
+
     # --------------- Vegetation absent/trace, samp_sel = 'SUBJ' ---------------------
     # Assign site_results zeros and no data values.  No entries in transect_results table
     samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
@@ -1374,7 +1384,9 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         site_results[site_results_id] = [site_results_id, sample.id, sample.veg_code] + utils.site_results_zero
 
         # Create an empty line feature class for the sample transects/surveys
-        lnfc_path = sample.make_line_fc(template_ln, transect_gdb)
+        # lnfc_path = sample.make_line_fc(template_ln, transect_gdb) # output to transect point geodatabase
+        lnfc_path = sample.make_line_fc(template_ln)  # use in-memory location
+
         # Get point data associated with each survey/transect and create line features
         for transect in sample.transects:
             transect.veg_code = sample.veg_code
@@ -1392,11 +1404,13 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                     survey.make_line_feature_df(lnfc_path, ln_field_names)
                 except KeyError:
                     msg("Missing transect point feature for survey: {}".format(survey.id))
+                    del_fc(sample.lnfc_path)
                     continue
 
         if not any(sample.transectpts_exist):
             """ If there are no point features for the sample, skip the rest of the calcs """
             warn("Missing all point features for Sample {} \n\t".format(sample.id))
+            del_fc(sample.lnfc_path)
             continue
 
         # Get the associated sample polygon
@@ -1404,15 +1418,20 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         if not sample.poly.exists:
             """ If the sample polygon does not exist, skip the rest of the calcs """
             warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
+            del_fc(sample.lnfc_path)
             continue
 
         # Clip the line segments
-        sample.clip_line_fc(sample.poly.layer, transect_gdb)
+        # sample.clip_line_fc(sample.poly.layer, transect_gdb) # Output to transect point geodatabase
+        sample.clip_line_fc(sample.poly.layer) # use in-memory workspace
+
         # Check to make sure there were output transect lines
         if len([row for row in arcpy.da.SearchCursor(sample.lnfc_clip_path, '*')]) == 0:
             warn_text = "No transect lines in clipped feature class {}".format(sample.lnfc_clip_path)
             warn_text += "\nTransects may be outside sample polygon. Skipping transect result calculations."
             warn(warn_text)
+            del_fc(sample.lnfc_path)
+            del_fc(sample.lnfc_clip_path)
             continue
 
         site_results_id = "_".join((sample.id, sample.veg_code))
@@ -1438,6 +1457,10 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
                 transect.mindepflag,
                 site_results_id
             ]
+        # Delete line feature class
+        del_fc(sample.lnfc_path)
+        del_fc(sample.lnfc_clip_path)
+
     # ---------------- END of Sample Group loops and data calculations ------------------
 
 
@@ -1490,20 +1513,20 @@ if __name__ == '__main__':
 
     # Input parameter 1:  Geodatabase with individual transect point data -- REQUIRED
     # transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_11-15.mdb"
-    # transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_2014_2015.mdb"
-    transect_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/tran_points_NO_RESULTS.mdb"
+    transect_gdb = "Y:/projects/dnr_svmp2016/data/svmp_pt_data/svmptoolsv4_td2fc_testing_2014_2015.mdb"
+    # transect_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/tran_points_NO_RESULTS.mdb"
 
     # Input parameter 2:  SVMP Geodatabase with Base Tables -- REQUIRED
-    # svmp_gdb = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815_AB.mdb"
-    svmp_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/SVMP_DB_v6_20171118_temp.mdb"
+    svmp_gdb = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815_AB.mdb"
+    # svmp_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/SVMP_DB_v6_20171118_temp.mdb"
 
     # Input parameter 3: Site Statistics Geodatabase with Template results tables -- REQUIRED
     #stats_gdb = "Y:/projects/dnr_svmp2016/svmp_tools/tools/svmp_db/svmp_sitesdb.mdb"
-    # stats_gdb = "Y:/projects/dnr_svmp2016/data/out/svmp_sitesdb_test.mdb"
-    stats_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/svmp_sitesdb_debugnoresults.mdb"
+    stats_gdb = "Y:/projects/dnr_svmp2016/data/out/svmp_sitesdb_test.mdb"
+    # stats_gdb = "Y:/projects/dnr_svmp2016/db/no_results_site_data/svmp_sitesdb_debugnoresults.mdb"
 
     # Input parameter 4: Survey Year to be Processed -- REQUIRED
-    survey_year = "2013" # "2014" # "2015"
+    survey_year = "2014" #"2015" #"2013" #
 
     # Input parameter 5: Vegetation Type to be Processed -- REQUIRED
     veg_code = "nativesg"
@@ -1526,6 +1549,3 @@ if __name__ == '__main__':
 
     main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, study, samp_sel)
 
-    # t1 = time.time()
-    #
-    # print ("Total time elapsed is: %s seconds" %str(t1-t0))
