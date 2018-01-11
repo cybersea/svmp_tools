@@ -81,6 +81,7 @@ class SampleGroup(object):
         ts - calculate transect and site stats
         t - calculate transect stats only; assign site stats as zero/no data
         s - no transect results; assign site results as zero/no data
+    heading -- text printed out as message when starting calcs on sample group
     df -- dataframe of the samples in the group with attributes
     ts_df -- data frame of the associated transects and surveys
     samples -- a list of sample objects
@@ -91,6 +92,7 @@ class SampleGroup(object):
         self.veg_code = veg_code
         self.group = group
         self.stats = "" # initialize stats type before setting it in _samp_group
+        self.heading = "" # initialize heading before setting it in _samp_group
         # create samples and transects dataframes based on group criteria
         self.df = self._samp_group(samp_df, svmp_tables)
         self.ts_df = None # initialize transects dataframe
@@ -127,16 +129,18 @@ class SampleGroup(object):
         veg_df = svmp_tables[utils.vegoccurTbl].df
         tsect_df = svmp_tables[utils.transectsTbl].df
         # Vegetation Present
+        # Calculate all values for site_results and transect_results table
         if self.group == "p":
             # Select all records in veg_occur dataframe where the veg type is present
             vegp_df = veg_df[(veg_df[self.veg_code].isin(["present"]))]
             df = samp_df[samp_df[utils.sitevisitidCol].isin(vegp_df[utils.sitevisitidCol])]
             # Remove any samples where samp_sel is SUBJ
             df = df[~df[utils.sampselCol].isin(["SUBJ"])]
-            # set the stats type -- transects and site calcs
             self.stats = "ts"  # set stats calc type to transect & site
+            self.heading = "--- Samples with {} = present".format(self.veg_code)
             return df
         # Vegetation is absent/trace and samp_sel = "SUBJ"
+        # Assign site_results zeros and no data values.  No entries in transect_results table
         elif self.group == "ats":
             # vegetation absent/trace
             vegat_df = veg_df[veg_df[self.veg_code].isin(["absent","trace"])]
@@ -144,8 +148,10 @@ class SampleGroup(object):
             # samp_sel = SUBJ
             df = df[df[utils.sampselCol].isin(["SUBJ"])]
             self.stats = "s" # set stats calc type to site (zero/no data)
+            self.heading = "--- Samples with {} = trace/absent and samp_sel = 'SUBJ'".format(veg_code)
             return df
         # Vegetation is absent/trace, samp_sel <> "SUBJ", transects exist
+        # Assign site_results zeros and no data values.  Calculate transect_results
         elif self.group == "atnst":
             # vegetation absent/trace
             vegat_df = veg_df[veg_df[self.veg_code].isin(["absent", "trace"])]
@@ -155,8 +161,10 @@ class SampleGroup(object):
             # sample has an associated record in transects table
             df = df[df[utils.sampidCol].isin(tsect_df[utils.sampidCol])]
             self.stats = "t"  # set stats calc type to transect
+            self.heading = "--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. With transect points".format(veg_code)
             return df
         # Vegetation is absent/trace, samp_sel <> "SUBJ", no transects
+        # Assign site_results zeros and no data values.  No entries in transect_results table
         elif self.group == "atnsnt":
             # vegetation absent/trace
             vegat_df = veg_df[veg_df[self.veg_code].isin(["absent", "trace"])]
@@ -165,7 +173,8 @@ class SampleGroup(object):
             df = df[~df[utils.sampselCol].isin(["SUBJ"])]
             # sample has no associated record in transects table
             df = df[~df[utils.sampidCol].isin(tsect_df[utils.sampidCol])]
-            self.stats = "s"  # set stats calc type to transect
+            self.stats = "s"  # set stats calc type to sites (zero/no data)
+            self.heading = "--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. No transect points".format(veg_code)
             return df
 
     def _get_ts_df(self, svmp_tables):
@@ -1192,9 +1201,10 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
         site_codes = []
 
     ##### For testing
-    # site_codes = ['core001','core004','sjs0526','hdc2346','cps1770','cps2173','flats09'] # variety of types
+    #site_codes = ['core001','core004','sjs0526','hdc2346','cps1770','cps2173','flats09'] # variety of types
     # site_codes = ['cps1081'] # missing one set of points in sample, but not all
     # site_codes = ['cps2185']
+    site_codes = ['core004']
 
     # Dictionary of filters used to select samples to process
     filter = {
@@ -1240,229 +1250,136 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     # ------- Create groups of samples and associated transects/surveys for processing --------
     msg("Grouping samples for processing and calculation of results")
 
-    #----------------- Veg present Samples  --------------------------------------------
-    # Calculate all values for site_results and transect_results table
     samp_vegp = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "p")
-    if samp_vegp.samples:
-        msg("--- Samples with {} = present".format(veg_code))
-    for sample in samp_vegp.samples:
-        sample.veg_code = samp_vegp.veg_code
-        msg("Processing Sample ID: {}".format(sample.id))
-
-        # Create an empty line feature class for the sample transects/surveys
-        # lnfc_path = sample.make_line_fc(template_ln, transect_gdb)  # output to transect point geodatabase
-        lnfc_path = sample.make_line_fc(template_ln) # use in-memory location
-
-        # Get point data associated with each survey/transect and create line features
-        for transect in sample.transects:
-            transect.veg_code = sample.veg_code
-            for survey in transect.surveys:
-                survey.veg_code = veg_code
-                try:
-                    # Get survey points from feature class
-                    survey.ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
-                    survey.ptfc_path = os.path.join(surveypt_fcs.gdb,
-                                                    survey.ptfc)  # full path to survey point feature class
-                    survey.pts_exist = True
-                except KeyError:
-                    warn("No transect point features found for survey_id: {}".format(survey.id))
-                    survey.pts_exist = False
-                    del_fc(sample.lnfc_path)
-                    continue
-
-                # Get pandas data frame of the survey's points and specified attributes
-                survey.set_ptfc_df(pt_field_names)
-                # Create a line feature from the point data frame
-                survey.make_line_feature_df(lnfc_path, ln_field_names)
-
-        if not any(sample.transectpts_exist):
-            """ If there are no point features for the sample, skip the rest of the calcs """
-            warn("Missing all point features for Sample {} \n\t".format(sample.id))
-            del_fc(sample.lnfc_path)
-            continue
-
-        # Get the associated sample polygon
-        sample.poly = SamplePoly(sample.id, svmp_gdb)
-        if not sample.poly.exists:
-            """ If the sample polygon does not exist, skip the rest of the calcs """
-            warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
-            del_fc(sample.lnfc_path)
-            continue
-
-        # Clip the line segments
-        # sample.clip_line_fc(sample.poly.layer, transect_gdb) # output to transect point geodatabase
-        sample.clip_line_fc(sample.poly.layer) # output to in-memory workspace
-
-        # Check to make sure there were output transect lines
-        if len([row for row in arcpy.da.SearchCursor(sample.lnfc_clip_path, '*')]) == 0:
-            warn_text = "No transect lines in clipped feature class {}".format(sample.lnfc_clip_path)
-            warn_text += "\nTransects may be outside sample polygon. Skipping transect result calculations."
-            warn(warn_text)
-            del_fc(sample.lnfc_path)
-            del_fc(sample.lnfc_clip_path)
-            continue
-
-        site_results_id = "_".join((sample.id, sample.veg_code))
-
-        # Calculate the transect and site/sample statistics from clipped lines
-        for transect in sample.transects:
-            for survey in transect.surveys:
-                survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
-            transect_results_id = "_".join((transect.id, sample.veg_code))
-            transect_results[transect_results_id] = [
-                transect_results_id,
-                transect.id,
-                sample.veg_code,
-                transect.len,
-                transect.veglen,
-                transect.vegfraction,
-                transect.maxdep_veg,
-                transect.maxdep,
-                transect.mindep_veg,
-                transect.mindep,
-                transect.maxdepflag,
-                transect.mindepflag,
-                site_results_id
-            ]
-
-        site_results[site_results_id] = [
-            site_results_id,
-            sample.id,
-            sample.veg_code,
-            sample.n_area,
-            sample.veg_fraction,
-            sample.sample_area,
-            sample.veg_area,
-            sample.se_vegarea,
-            sample.n_veg_mindep,
-            sample.veg_mind_mean,
-            sample.veg_mind_deepest,
-            sample.veg_mind_shallowest,
-            sample.veg_mind_se,
-            sample.n_veg_maxdep,
-            sample.veg_maxd_mean,
-            sample.veg_maxd_deepest,
-            sample.veg_maxd_shallowest,
-            sample.veg_maxd_se
-        ]
-
-        # Delete line feature class
-        del_fc(sample.lnfc_path)
-        del_fc(sample.lnfc_clip_path)
-
-    # --------------- Vegetation absent/trace, samp_sel = 'SUBJ' ---------------------
-    # Assign site_results zeros and no data values.  No entries in transect_results table
     samp_vegats = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "ats")
-    if samp_vegats.samples:
-        msg("--- Samples with {} = trace/absent and samp_sel = 'SUBJ'".format(veg_code))
-    for sample in samp_vegats.samples:
-        sample.veg_code = samp_vegats.veg_code
-        msg("Processing Sample ID: {}".format(sample.id))
-        site_results_id = "_".join((sample.id, sample.veg_code))
-        site_results[site_results_id] = [site_results_id,sample.id,sample.veg_code] + utils.site_results_zero
-
-    # ------------- Veg absent/trace, samp_sel <> 'SUBJ', no transects ---------------
-    # Assign site_results zeros and no data values.  No entries in transect_results table
     samp_vegatnsnt = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnsnt")
-    if samp_vegatnsnt.samples:
-        msg("--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. No transect points".format(veg_code))
-    for sample in samp_vegatnsnt.samples:
-        sample.veg_code = samp_vegatnsnt.veg_code
-        msg("Processing Sample ID: {}".format(sample.id))
-        site_results_id = "_".join((sample.id, sample.veg_code))
-        site_results[site_results_id] = [site_results_id, sample.id, sample.veg_code] + utils.site_results_zero
-
-    # ----------- Veg absent/trace, samp_sel <> 'SUBJ', with transects --------------
-    # Assign site_results zeros and no data values.  Calculate transect_results
     samp_vegatnst = SampleGroup(samples_filtered_df, svmp_tables, veg_code, "atnst")
-    if samp_vegatnst.samples:
-        msg("--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. With transect points".format(veg_code))
-    for sample in samp_vegatnst.samples:
-        sample.veg_code = samp_vegatnst.veg_code
-        msg("Processing Sample ID: {}".format(sample.id))
-        site_results_id = "_".join((sample.id, sample.veg_code))
-        site_results[site_results_id] = [site_results_id, sample.id, sample.veg_code] + utils.site_results_zero
 
-        # Create an empty line feature class for the sample transects/surveys
-        # lnfc_path = sample.make_line_fc(template_ln, transect_gdb) # output to transect point geodatabase
-        lnfc_path = sample.make_line_fc(template_ln)  # use in-memory location
+    samp_groups = [
+        samp_vegp,
+        samp_vegats,
+        samp_vegatnsnt,
+        samp_vegatnst
+    ]
 
-        # Get point data associated with each survey/transect and create line features
-        for transect in sample.transects:
-            transect.veg_code = sample.veg_code
-            for survey in transect.surveys:
-                survey.veg_code = veg_code
-                try:
-                    # Get survey points from feature class
-                    survey.ptfc = surveypt_fcs.survey_fc[survey.id]  # feature class name for specified survey.id
-                    survey.ptfc_path = os.path.join(surveypt_fcs.gdb,
-                                                    survey.ptfc)  # full path to survey point feature class
-                    survey.pts_exist = True
-                    # Get pandas data frame of the survey's points and specified attributes
-                    survey.set_ptfc_df(pt_field_names)
-                    # Create a line feature from the point data frame
-                    survey.make_line_feature_df(lnfc_path, ln_field_names)
-                except KeyError:
-                    msg("Missing transect point feature for survey: {}".format(survey.id))
+    # -------  Process all sample groups and calculate associated statistics --------------
+    for samp_group in samp_groups:
+        if samp_group.samples:
+            msg(samp_group.heading) # Output the group that is being processed
+        # Loop through all samples in the group
+        for sample in samp_group.samples:
+            sample.veg_code = samp_group.veg_code # assign the veg code to each sample
+            msg("Processing Sample ID: {}".format(sample.id))
+            site_results_id = "_".join((sample.id, sample.veg_code))
+
+            #---- Assign site_results zeros and no data values.  No entries in transect_results table
+            if samp_group.stats == "s":
+                site_results[site_results_id] = [site_results_id, sample.id, sample.veg_code] + utils.site_results_zero
+            #---- Calculate transect results
+            elif samp_group.stats in ("ts","t"):
+                # Create an empty line feature class for the sample transects/surveys
+                lnfc_path = sample.make_line_fc(template_ln) # output to in-memory workspace
+
+                # Get point data associated with each survey/transect and create line features
+                for transect in sample.transects:
+                    transect.veg_code = sample.veg_code
+                    for survey in transect.surveys:
+                        survey.veg_code = veg_code
+                        try:
+                            # Get survey points from feature class
+                            survey.ptfc = surveypt_fcs.survey_fc[survey.id] # feature class name for specified survey.id
+                            survey.ptfc_path = os.path.join(surveypt_fcs.gdb,
+                                                            survey.ptfc)  # full path to survey point feature class
+                            survey.pts_exist = True
+                        except KeyError:
+                            warn("No transect point features found for survey_id: {}".format(survey.id))
+                            survey.pts_exist = False
+                            continue
+
+                        # Get pandas data frame of the survey's points and specified attributes
+                        survey.set_ptfc_df(pt_field_names)
+                        # Create a line feature from the point data frame
+                        survey.make_line_feature_df(lnfc_path, ln_field_names)
+
+                if not any(sample.transectpts_exist):
+                    """ If there are no point features for the sample, skip the rest of the calcs """
+                    warn("Missing ALL point features for Sample {}".format(sample.id))
                     del_fc(sample.lnfc_path)
                     continue
 
-        if not any(sample.transectpts_exist):
-            """ If there are no point features for the sample, skip the rest of the calcs """
-            warn("Missing all point features for Sample {} \n\t".format(sample.id))
-            del_fc(sample.lnfc_path)
-            continue
+                # Get the associated sample polygon
+                sample.poly = SamplePoly(sample.id, svmp_gdb)
+                if not sample.poly.exists:
+                    """ If the sample polygon does not exist, skip the rest of the calcs """
+                    warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
+                    del_fc(sample.lnfc_path)
+                    continue
 
-        # Get the associated sample polygon
-        sample.poly = SamplePoly(sample.id, svmp_gdb)
-        if not sample.poly.exists:
-            """ If the sample polygon does not exist, skip the rest of the calcs """
-            warn("Missing sample polygon {}. Skipping transect results calculations.".format(sample.poly.id))
-            del_fc(sample.lnfc_path)
-            continue
+                # Clip the line segments
+                sample.clip_line_fc(sample.poly.layer) # output to in-memory workspace
 
-        # Clip the line segments
-        # sample.clip_line_fc(sample.poly.layer, transect_gdb) # Output to transect point geodatabase
-        sample.clip_line_fc(sample.poly.layer) # use in-memory workspace
+                # Check to make sure there were output transect lines
+                if len([row for row in arcpy.da.SearchCursor(sample.lnfc_clip_path, '*')]) == 0:
+                    warn_text = "No transect lines in clipped feature class {}".format(sample.lnfc_clip_path)
+                    warn_text += "\nTransects may be outside sample polygon. Skipping transect result calculations."
+                    warn(warn_text)
+                    del_fc(sample.lnfc_path)
+                    del_fc(sample.lnfc_clip_path)
+                    continue
 
-        # Check to make sure there were output transect lines
-        if len([row for row in arcpy.da.SearchCursor(sample.lnfc_clip_path, '*')]) == 0:
-            warn_text = "No transect lines in clipped feature class {}".format(sample.lnfc_clip_path)
-            warn_text += "\nTransects may be outside sample polygon. Skipping transect result calculations."
-            warn(warn_text)
-            del_fc(sample.lnfc_path)
-            del_fc(sample.lnfc_clip_path)
-            continue
+                # Calculate the transect statistics from clipped lines
+                for transect in sample.transects:
+                    for survey in transect.surveys:
+                        survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
+                    transect_results_id = "_".join((transect.id, sample.veg_code))
+                    transect_results[transect_results_id] = [
+                        transect_results_id,
+                        transect.id,
+                        sample.veg_code,
+                        transect.len,
+                        transect.veglen,
+                        transect.vegfraction,
+                        transect.maxdep_veg,
+                        transect.maxdep,
+                        transect.mindep_veg,
+                        transect.mindep,
+                        transect.maxdepflag,
+                        transect.mindepflag,
+                        site_results_id
+                    ]
+                if samp_group.stats == "ts":
+                    # Calculate site/sample statistics
+                    site_results[site_results_id] = [
+                        site_results_id,
+                        sample.id,
+                        sample.veg_code,
+                        sample.n_area,
+                        sample.veg_fraction,
+                        sample.sample_area,
+                        sample.veg_area,
+                        sample.se_vegarea,
+                        sample.n_veg_mindep,
+                        sample.veg_mind_mean,
+                        sample.veg_mind_deepest,
+                        sample.veg_mind_shallowest,
+                        sample.veg_mind_se,
+                        sample.n_veg_maxdep,
+                        sample.veg_maxd_mean,
+                        sample.veg_maxd_deepest,
+                        sample.veg_maxd_shallowest,
+                        sample.veg_maxd_se
+                    ]
+                elif samp_group.stats == "t":
+                    # Assign site_results zeros and no data values
+                    site_results[site_results_id] = [site_results_id, sample.id, sample.veg_code] + utils.site_results_zero
 
-        site_results_id = "_".join((sample.id, sample.veg_code))
+                # If user would like to save line features:
+                # arcpy.CopyFeatures_management(sample.lnfc_path, os.path.join(transect_gdb, sample.lnfc))
+                # arcpy.CopyFeatures_management(sample.lnfc_clip_path, os.path.join(transect_gdb, sample.lnfc_clipped))
 
-        # Calculate the transect and site/sample statistics from clipped lines
-        for transect in sample.transects:
-            for survey in transect.surveys:
-                survey.set_lnfc_df(sample.lnfc_clip_path, ln_clip_field_names)
-            # msg("Calculating transect results for {}".format(transect.id))
-            transect_results_id = "_".join((transect.id, sample.veg_code))
-            transect_results[transect_results_id] = [
-                transect_results_id,
-                transect.id,
-                sample.veg_code,
-                transect.len,
-                transect.veglen,
-                transect.vegfraction,
-                transect.maxdep_veg,
-                transect.maxdep,
-                transect.mindep_veg,
-                transect.mindep,
-                transect.maxdepflag,
-                transect.mindepflag,
-                site_results_id
-            ]
-        # Delete line feature class
-        del_fc(sample.lnfc_path)
-        del_fc(sample.lnfc_clip_path)
-
-    # ---------------- END of Sample Group loops and data calculations ------------------
-
+                # Delete working line feature class
+                del_fc(sample.lnfc_path)
+                del_fc(sample.lnfc_clip_path)
 
     # -------------------- Populate Results Tables ----------------------------
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
