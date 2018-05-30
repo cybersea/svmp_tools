@@ -148,7 +148,7 @@ class SampleGroup(object):
             # samp_sel = SUBJ
             df = df[df[utils.sampselCol].isin(["SUBJ"])]
             self.stats = "s" # set stats calc type to site (zero/no data)
-            self.heading = "--- Samples with {} = trace/absent and samp_sel = 'SUBJ'".format(veg_code)
+            self.heading = "--- Samples with {} = trace/absent and samp_sel = 'SUBJ'".format(self.veg_code)
             return df
         # Vegetation is absent/trace, samp_sel <> "SUBJ", transects exist
         # Assign site_results zeros and no data values.  Calculate transect_results
@@ -161,7 +161,7 @@ class SampleGroup(object):
             # sample has an associated record in transects table
             df = df[df[utils.sampidCol].isin(tsect_df[utils.sampidCol])]
             self.stats = "t"  # set stats calc type to transect
-            self.heading = "--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. With transect points".format(veg_code)
+            self.heading = "--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. With transect points".format(self.veg_code)
             return df
         # Vegetation is absent/trace, samp_sel <> "SUBJ", no transects
         # Assign site_results zeros and no data values.  No entries in transect_results table
@@ -174,7 +174,7 @@ class SampleGroup(object):
             # sample has no associated record in transects table
             df = df[~df[utils.sampidCol].isin(tsect_df[utils.sampidCol])]
             self.stats = "s"  # set stats calc type to sites (zero/no data)
-            self.heading = "--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. No transect points".format(veg_code)
+            self.heading = "--- Samples with {} = trace/absent and samp_sel <> 'SUBJ'. No transect points".format(self.veg_code)
             return df
 
     def _get_ts_df(self, svmp_tables):
@@ -1204,7 +1204,7 @@ def main(transect_gdb, svmp_gdb, stats_gdb, survey_year, veg_code, sites_file, s
     #site_codes = ['core001','core004','sjs0526','hdc2346','cps1770','cps2173','flats09'] # variety of types
     # site_codes = ['cps1081'] # missing one set of points in sample, but not all
     # site_codes = ['cps2185']
-    site_codes = ['core004']
+    #site_codes = ['core004']
 
     # Dictionary of filters used to select samples to process
     filter = {
