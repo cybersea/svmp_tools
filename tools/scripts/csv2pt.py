@@ -165,6 +165,8 @@ class CsvSource(object):
         self.reqd_columns = REQD_COLUMNS
         self.sourceLatCol = sourceLatCol
         self.sourceLonCol = sourceLonCol
+        self.sourceTimeCol = sourceTimeCol
+        self.sourceDateCol = sourceDateCol
         self.veg_codes = veg_codes
 
     @property
@@ -174,9 +176,10 @@ class CsvSource(object):
             No missing base columns
             At least one vegetation column
             No malformed latitude or longitude values
+            No malformed date or time values
         """
         if self.file_exists and len(self.missing_columns) == 0 and len(self.veg_columns) > 0 and \
-                len(self.lat_errors) == 0 and len(self.lon_errors) == 0:
+                len(self.lat_errors) == 0 and len(self.lon_errors) == 0 and len(self.time_errors) == 0 and len(self.date_errors) == 0:
             return True
         else:
             return False
@@ -233,7 +236,6 @@ class CsvSource(object):
         _veg_columns = set(self.veg_codes).intersection(set(self.all_columns))
         return list(_veg_columns)
 
-
     @property
     def columns(self):
         """combined list of base and vegetation columns in source csv file"""
@@ -258,13 +260,31 @@ class CsvSource(object):
         except:
             return None
 
+    @property
+    def time_errors(self):
+        """list of rows in source csv file with erroneous time values"""
+        try:
+            _time_errors = self._validate_time(self.sourceTimeCol)
+            return _time_errors
+        except:
+            return None
+
+    @property
+    def date_errors(self):
+        """list of rows in source csv file with erroneous date values"""
+        try:
+            _date_errors = self._validate_date(self.sourceDateCol)
+            return _date_errors
+        except:
+            return None
+
     def _validate_latlon(self, col):
         """Function to validate lat or lon values based on expected pattern"""
         # Assumes input in format ##d##.####' Dir or ##d##' Dir
         # latlon_pattern = "[0-9]+[d][0-9]+[.][0-9]+\' [nsewNSEW]"
         latlon_pattern = "[0-9]+[d][0-9]+[.]?[0-9]+\' [nsewNSEW]"
-        error_rows = []
-        #
+        error_rows = [] # initialize list of rows with errors
+        # Loop through data and validate lat/long value
         for i, row in enumerate(self.rows):
             csv_row = i + 1
             coord = row[col]
@@ -280,6 +300,48 @@ class CsvSource(object):
         # validrows = self.dataframe[col].str.contains(latlong_pattern)
         # errors = self.dataframe[~validrows]
 
+        return error_rows
+
+    def _validate_time(self, col):
+        """
+        Function to validate time values based on expected patter
+        Input can be in 12-hour (AM/PM) or 24-hour format
+        :param col:
+        :return:
+        """
+        error_rows = [] # initialize list of rows with errors
+        # Loop through data and validate time values
+        for i, row in enumerate(self.rows):
+            csv_row = i + 1
+            time_of_survey = row[col]
+            time24hr_pattern = "^(2[0-3]|[01]?[0-9]):([0-5]?[0-9]):([0-5]?[0-9])$"
+            time12hr_pattern = "^(1[0-2]|0?[1-9]):([0-5]?[0-9]):([0-5]?[0-9])( ?[AP]M)?$"
+
+            if "M" in time_of_survey:
+                if not re.search(time12hr_pattern, time_of_survey):
+                    error_rows.append(csv_row)
+            else:
+                if not re.search(time24hr_pattern, time_of_survey):
+                    error_rows.append(csv_row)
+        return error_rows
+
+    def _validate_date(self, col):
+        """
+        Function to validate date values based on expected pattern
+        Input expected to be in this format:  m/d/yyyy or mm/dd/yyyy
+        :param col:
+        :return:
+        """
+        error_rows = [] # initialize list of rows with errors
+        # Loop through data and validate time values
+        for i, row in enumerate(self.rows):
+            csv_row = i + 1
+            date_of_survey = row[col]
+            try:
+                [m, d, y] = date_of_survey.split('/')
+                testdate = datetime.date(int(y), int(m), int(d))
+            except:
+                error_rows.append(csv_row)
         return error_rows
 
     @property
@@ -483,7 +545,6 @@ class CsvData(object):
         # print df_max.loc[tranCol > 1]
         return df_max
 
-
     def _validate_data(self):
         # Check validation properties
         if self.video_zero or self.null_video or self.null_veg or self.video_gt1 \
@@ -663,6 +724,14 @@ class LogFile(object):
                 err_type = "Bad Longitude Values"
                 details = 'Rows: ' + ';'.join(str(r) for r in csvsource.lon_errors)
                 self.fh.write(",".join((csv_dir, csv_file, err_type, details)) + "\n")
+            if csvsource.time_errors:
+                err_type = "Bad Time Values"
+                details = 'Rows: ' + ';'.join(str(r) for r in csvsource.time_errors)
+                self.fh.write(",".join((csv_dir, csv_file, err_type, details)) + "\n")
+            if csvsource.date_errors:
+                err_type = "Bad Date Values"
+                details = 'Rows: ' + ';'.join(str(r) for r in csvsource.date_errors)
+                self.fh.write(",".join((csv_dir, csv_file, err_type, details)) + "\n")
 
     def write_direrr(self, csv_dir):
 
@@ -693,7 +762,7 @@ class LogFile(object):
             self.fh.write(",".join((csv_dir, csv_file, err_type, details)) + "\n")
         if csvdata.null_video:
             err_type = "Null Video Values"
-            # print ', '.join(str(x) for x in list_of_ints)
+            # print(', '.join(str(x) for x in list_of_ints))
             details = 'Rows: ' + ';'.join(str(i) for i in csvdata.null_video)
             self.fh.write(",".join((csv_dir, csv_file, err_type, details)) + "\n")
         if csvdata.null_veg:
@@ -773,7 +842,7 @@ def main(in_dir, sites_file, vegcode_table, out_gdb, err_dir):
                     if transectData.warnings:
                         msg("Data Validation Warnings.\nWriting to log file: {1}".format(csvSource.file_path, warning_log.log_file))
                         warning_log.write_datawarn(transectData)
-                    print "Creating Point feature class {0}".format(fc_path)
+                    msg("Creating Point feature class {0}".format(fc_path))
                     ptFC = PointFC(transectData.nparray, fc_path)
                     ptFC.create_fc()
                 else:
@@ -804,21 +873,26 @@ if __name__ == '__main__':
     # Input parameter 1:  Parent directory for site data folders and input csv files
     # in_dir = "Y:/projects/dnr_svmp2016/data/2014_test/site_folders"
     in_dir = "Y:/projects/dnr_svmp2016/data/examples"
+    # in_dir = "Y:/projects/dnr_svmp2016/data/IslandCoMRC"
 
     # Input parameter 2:  Text file with list of sites to process
     sites_file = os.path.join("Y:/projects/dnr_svmp2016/data/examples", "sites2process_examples.txt")
+    # sites_file = os.path.join("Y:/projects/dnr_svmp2016/data/IslandCoMRC", "sites2process_IslandCoMRC.txt")
 
     # Input parameter 3: Table with vegetation codes
     vegcode_table = "Y:/projects/dnr_svmp2016/db/SVMP_2000_2015_DB.v4_20170109/SVMP_DB_v4_20170109.mdb/veg_codes"
+    # vegcode_table = "Y:/projects/dnr_svmp2016/db/SVMP_DB_v5.2_20170815.mdb/veg_codes"
 
     # Input parameter 4: Output Geodatabase to store point feature classes
     out_gdb = "Y:/projects/dnr_svmp2016/data/examples/examples_pgdb.mdb"
+    # out_gdb = "Y:/projects/dnr_svmp2016/data/IslandCoMRC/IslandCoMRC_transects.mdb"
 
     # Input parameter 5: Error Log directory
     err_dir = in_dir
+    # err_dir = "Y:/projects/dnr_svmp2016/data/IslandCoMRC/err_logs"
 
     main(in_dir, sites_file, vegcode_table, out_gdb, err_dir)
 
     t1 = time.time()
 
-    print ("Total time elapsed is: %s seconds" %str(t1-t0))
+    print("Total time elapsed is: %s seconds" %str(t1-t0))
